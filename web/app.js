@@ -1,4 +1,4 @@
-// The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, both over Web Serial.
+// The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, through tools/web_bridge.py or Web Serial.
 import { S3Radio, WsPort } from "./iqs.js";
 import { Spectrum, CwDemod } from "./dsp.js";
 
@@ -6,13 +6,13 @@ const $ = (id) => document.getElementById(id);
 const ESPRESSIF = { usbVendorId: 0x303a };
 const FFT_N = 4096;
 
-// Served by tools/web_bridge.py: the boards come through its WebSocket (Web Serial on this Linux loses the port at once);
+// Served by tools/web_bridge.py: the boards come through its WebSocket (any browser, no port chooser);
 // served by a plain web server: Web Serial with the browser's port chooser.
 let bridge = null;
 // ?webserial: Web Serial even when the bridge serves the page
 const bridgeReady = (new URLSearchParams(location.search).has("webserial") ? Promise.resolve(null)
   : fetch("bridge.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null))
-  .then((b) => { bridge = b; if (b) log(`most: S3 ${b.ports.s3}, C3 ${b.ports.c3}`, "ok"); return b; });
+  .then((b) => { bridge = b; if (b) log(`bridge: S3 ${b.ports.s3}, C3 ${b.ports.c3}`, "ok"); return b; });
 
 async function pickPort(which) {
   await bridgeReady;
@@ -44,24 +44,24 @@ $("s3conn").onclick = async () => {
   if (st.s3) {
     await st.s3.close().catch(() => {});
     st.s3 = null;
-    $("s3conn").textContent = "Připojit S3"; $("s3info").textContent = "nepřipojeno";
+    $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected";
     $("start").disabled = $("stop").disabled = true;
     return;
   }
   let r = null;
   try {
     const port = await pickPort("s3");
-    if (st.c3 && port === st.c3.port) throw new Error("tenhle port už má C3 – vyber druhý");
+    if (st.c3 && port === st.c3.port) throw new Error("this port is the C3's: pick the other one");
     r = new S3Radio(onSamples, (l) => { if (!l.startsWith("I (")) log("S3: " + l); });
     await r.open(port);
     let info = "";
     for (let i = 0; i < 3 && !info; i++) info = await r.cmd("INFO", (l) => /^(S3SDR|ESP32DATV|ERR)/.test(l)).catch(() => "");
     if (!info.startsWith("S3SDR")) {
-      throw new Error(info ? `tohle není S3 s ESP-SDR (${info}) – vyber druhý port` : "S3 neodpovídá na INFO");
+      throw new Error(info ? `not an S3 with ESP-SDR (${info}): pick the other port` : "the S3 does not answer INFO");
     }
     st.s3 = r;
     $("s3info").textContent = info; $("s3info").className = "stat ok";
-    $("s3conn").textContent = "Odpojit S3";
+    $("s3conn").textContent = "Disconnect S3";
     $("start").disabled = false;
   } catch (e) {
     log("S3: " + e.message, "err");
@@ -69,16 +69,16 @@ $("s3conn").onclick = async () => {
   }
 };
 
-// a board that resets or is unplugged: drop it, so that "Připojit" starts afresh
+// a board that resets or is unplugged: drop it, so that "Connect" starts afresh
 navigator.serial?.addEventListener("disconnect", (e) => {
   if (st.s3 && e.target === st.s3.port) {
-    log("S3 odpojena (reset nebo USB)", "err");
-    st.s3 = null; $("s3conn").textContent = "Připojit S3"; $("s3info").textContent = "nepřipojeno"; $("s3info").className = "stat";
+    log("S3 gone (reset or USB)", "err");
+    st.s3 = null; $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected"; $("s3info").className = "stat";
     $("start").disabled = $("stop").disabled = true;
   }
   if (st.c3 && e.target === st.c3.port) {
-    log("C3 odpojena (reset nebo USB)", "err");
-    st.c3 = null; $("c3conn").textContent = "Připojit C3"; $("c3info").textContent = "nepřipojeno";
+    log("C3 gone (reset or USB)", "err");
+    st.c3 = null; $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
     for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = true;
   }
 });
@@ -97,7 +97,7 @@ $("start").onclick = async () => {
     setListen(st.listenHz);
     st.t0 = performance.now(); st.samples = 0;
     $("stop").disabled = false;
-    log(`stream ${(st.fs / 1e3).toFixed(3)} kS/s, ${bits} bit, střed ${(st.centerHz / 1e6).toFixed(6)} MHz (PLL)`, "ok");
+    log(`stream ${(st.fs / 1e3).toFixed(3)} kS/s, ${bits} bit, centre ${(st.centerHz / 1e6).toFixed(6)} MHz (PLL)`, "ok");
   } catch (e) { log("start: " + e.message, "err"); }
 };
 
@@ -162,8 +162,8 @@ $("wf").addEventListener("wheel", (e) => { e.preventDefault(); setListen(st.list
 $("audio").onclick = async () => {
   if (st.audio) {
     await st.audio.close().catch(() => {}); st.audio = null; st.node = null;
-    $("audio").textContent = "Zvuk zap."; $("audio").classList.remove("on");
-    log("zvuk vypnut");
+    $("audio").textContent = "Audio on"; $("audio").classList.remove("on");
+    log("audio off");
     return;
   }
   try {
@@ -175,9 +175,9 @@ $("audio").onclick = async () => {
     node.port.postMessage({ volume: Number($("vol").value) });
     await ctx.resume();
     st.audio = ctx; st.node = node; st.audioSamples = 0;
-    $("audio").textContent = "Zvuk vyp."; $("audio").classList.add("on");
-    log(`zvuk: ${ctx.sampleRate} Hz, ${ctx.state}` + (st.demod ? "" : " – zatím bez streamu, dej Start"), "ok");
-  } catch (e) { log("zvuk: " + e.message, "err"); }
+    $("audio").textContent = "Audio off"; $("audio").classList.add("on");
+    log(`audio: ${ctx.sampleRate} Hz, ${ctx.state}` + (st.demod ? "" : " (no stream yet: press Start)"), "ok");
+  } catch (e) { log("audio: " + e.message, "err"); }
 };
 $("vol").oninput = () => st.node?.port.postMessage({ volume: Number($("vol").value) });
 
@@ -228,13 +228,15 @@ function drawSpectrum(db) {
     ctx.beginPath(); ctx.moveTo(0, y(d)); ctx.lineTo(W, y(d)); ctx.stroke();
     ctx.fillText(`${d} dBFS`, 4, y(d) - 2);
   }
-  // frequency grid: a round step for about 8 lines
+  // frequency grid: a round step for about 8 lines; the labels go on the axis strip
   const step = [10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4].find((s) => v.span / s <= 10);
+  const ticks = [];
   for (let f = Math.ceil((st.centerHz + v.lo) / step) * step; f < st.centerHz + v.lo + v.span; f += step) {
     const x = (f - st.centerHz - v.lo) / v.span * W;
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-    ctx.fillText((f / 1e6).toFixed(step < 1e3 ? 5 : 3), x + 3, H - 4);
+    ticks.push([x, f]);
   }
+  drawAxis(ticks, step, W, v);
   // listen frequency and filter
   const lx = (st.listenHz - st.centerHz - v.lo) / v.span * W, bwx = Number($("bw").value) / v.span * W;
   ctx.fillStyle = "rgba(255,159,10,0.18)"; ctx.fillRect(lx - bwx / 2, 0, bwx, H);
@@ -258,12 +260,51 @@ function drawSpectrum(db) {
   let lv = -200;
   for (let i = li - 2; i <= li + 2; i++) if (i >= 0 && i < FFT_N && db[i] > lv) lv = db[i];
   const snr = lv - med;
-  $("level").textContent = `${lv.toFixed(1)} dBFS, ${snr.toFixed(0)} dB nad šumem (bin ${bin.toFixed(1)} Hz)`;
+  $("level").textContent = `${lv.toFixed(1)} dBFS, ${snr.toFixed(0)} dB above noise (bin ${bin.toFixed(1)} Hz)`;
   $("meter").style.width = `${Math.max(0, Math.min(100, snr * 2))}%`;
   const s = st.s3?.parser.stats, sec = (performance.now() - st.t0) / 1e3;
-  if (s) $("stats").textContent = `${(st.samples / sec / 1e3).toFixed(1)} kS/s · rámce ${s.frames} · CRC ${s.crcBad} · mezery ${s.gaps} (${s.gapSamples})` +
-    (st.audio ? ` · zvuk ${st.audio.state}, ${st.audioSamples} vz.` : "");
+  if (s) $("stats").textContent = `${(st.samples / sec / 1e3).toFixed(1)} kS/s · frames ${s.frames} · CRC ${s.crcBad} · gaps ${s.gaps} (${s.gapSamples})` +
+    (st.audio ? ` · audio ${st.audio.state}, ${st.audioSamples} samples` : "");
 }
+
+// The axis strip: ticks with the frequency in MHz (enough decimals for the step), minor ticks, the listen marker.
+function drawAxis(ticks, step, W, v) {
+  const ax = $("axis");
+  fit(ax);
+  const c = ax.getContext("2d"), H = ax.height, dpr = devicePixelRatio;
+  c.fillStyle = "#101214"; c.fillRect(0, 0, ax.width, H);
+  const sx = ax.width / W;
+  c.strokeStyle = "#5a6068"; c.lineWidth = 1;
+  for (let f = Math.ceil((st.centerHz + v.lo) / (step / 5)) * (step / 5); f < st.centerHz + v.lo + v.span; f += step / 5) {
+    const x = (f - st.centerHz - v.lo) / v.span * ax.width;
+    c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 4 * dpr); c.stroke();
+  }
+  const dec = step >= 1e5 ? 1 : step >= 1e4 ? 2 : step >= 1e3 ? 3 : step >= 100 ? 4 : step >= 10 ? 5 : 6;
+  c.fillStyle = "#c8ccd0"; c.font = `${12 * dpr}px ui-monospace, monospace`; c.textAlign = "center"; c.textBaseline = "bottom";
+  for (const [x, f] of ticks) {
+    const xx = x * sx;
+    c.strokeStyle = "#8a9097"; c.beginPath(); c.moveTo(xx, 0); c.lineTo(xx, 8 * dpr); c.stroke();
+    c.fillText((f / 1e6).toFixed(dec), xx, H - 2 * dpr);
+  }
+  const lx = (st.listenHz - st.centerHz - v.lo) / v.span * ax.width;
+  c.fillStyle = "#ff9f0a";
+  c.beginPath(); c.moveTo(lx - 5 * dpr, 0); c.lineTo(lx + 5 * dpr, 0); c.lineTo(lx, 7 * dpr); c.fill();
+  c.textAlign = "right"; c.fillStyle = "#8a9097"; c.font = `${10 * dpr}px ui-monospace, monospace`;
+  c.fillText("MHz", ax.width - 3 * dpr, 12 * dpr);
+}
+
+/* ------------------------------------------------------------ presets */
+
+$("preset").onchange = async () => {
+  if (!$("preset").value) return;
+  const [center, listen, decim] = $("preset").value.split(",");
+  $("center").value = center;
+  const opt = [...$("rate").options].find((o) => o.value.startsWith(decim + ","));
+  if (opt) $("rate").value = opt.value;
+  if (Number(decim) <= 64) $("zoom").value = "1";
+  setListen(Number(listen) * 1e6);
+  if (st.s3?.streaming) $("start").onclick();             // restart the stream on the new centre
+};
 
 /* ------------------------------------------------------------ C3 */
 
@@ -274,13 +315,13 @@ $("c3conn").onclick = async () => {
     st.c3.writer.releaseLock();
     await st.c3.port.close().catch(() => {});
     st.c3 = null;
-    $("c3conn").textContent = "Připojit C3"; $("c3info").textContent = "nepřipojeno";
+    $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
     for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = true;
     return;
   }
   try {
     const port = await pickPort("c3");
-    if (st.s3 && port === st.s3.port) throw new Error("tenhle port už má S3 – vyber druhý");
+    if (st.s3 && port === st.s3.port) throw new Error("this port is the S3's: pick the other one");
     await port.open({ baudRate: 115200 });
     try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
     const c3 = { port, writer: port.writable.getWriter(), reader: port.readable.getReader(), lines: [] };
@@ -303,11 +344,11 @@ $("c3conn").onclick = async () => {
     await c3send("INFO");
     await new Promise((r) => setTimeout(r, 600));
     if (!c3.lines.some((l) => l.startsWith("ESP32DATV"))) {
-      log("C3: tohle není C3 s ESP32-DATV firmwarem – vyber druhý port", "err");
+      log("C3: not a C3 with the ESP32-DATV firmware: pick the other port", "err");
       $("c3conn").onclick();
       return;
     }
-    $("c3conn").textContent = "Odpojit C3";
+    $("c3conn").textContent = "Disconnect C3";
     for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = false;
   } catch (e) { log("C3: " + e.message, "err"); }
 };
@@ -323,6 +364,27 @@ $("c3set").onclick = async () => {
   await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
 };
 
-bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Bez mostu (tools/web_bridge.py) je potřeba Web Serial: Chrome nebo Edge na http://localhost.", "err"); });
+bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on http://localhost.", "err"); });
+
+// ?demo: no board; a synthetic stream (noise and a keyed tone 1 kHz above the centre) to check the page and the audio
+if (new URLSearchParams(location.search).has("demo")) {
+  st.fs = 62500; st.centerHz = Number($("center").value) * 1e6;
+  st.spec = new Spectrum(FFT_N, 1, 32768, drawSpectrum);
+  st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
+  setListen(st.centerHz + 1000);
+  st.t0 = performance.now();
+  let ph = 0, n = 0;
+  setInterval(() => {
+    const m = st.fs / 10, iq = new Float32Array(2 * m);
+    for (let k = 0; k < m; k++, n++) {
+      const key = Math.floor(n / (st.fs * 0.08)) % 4 !== 3;            // dits at 15 WPM, a gap every fourth
+      const a = key ? 300 : 0, g = () => (Math.random() + Math.random() + Math.random() - 1.5) * 20;
+      ph += 2 * Math.PI * 1000 / st.fs;
+      iq[2 * k] = a * Math.cos(ph) + g(); iq[2 * k + 1] = a * Math.sin(ph) + g();
+    }
+    onSamples(iq);
+  }, 100);
+  log("demo: synthetic stream, keyed tone at +1 kHz", "ok");
+}
 
 window.nb = st;                        // for debugging from the console

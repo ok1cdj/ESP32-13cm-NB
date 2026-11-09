@@ -1,29 +1,36 @@
-# NB 13 cm přijímač – webová stránka (fáze 1)
+# NB 13 cm receiver – web page
 
-ESP32-S3 s firmwarem ESP-SDR (IQS stream) přes Web Serial: spektrum, vodopád, CW demodulace se zvukem; ovládání CW majáku
-na C3 (ESP32-DATV-SA, větev `cw-beacon`).
+ESP32-S3 with the ESP-SDR firmware (IQS stream): spectrum, frequency axis, waterfall, CW demodulation with audio; control of
+the CW beacon on the C3 (ESP32-DATV-SA, branch `cw-beacon`). Works offline: everything is served from this computer.
 
 ```sh
-tools/web_bridge.py                                        # stránka + most k deskám přes WebSocket: http://localhost:8080
-node web/test/test.mjs                                     # testy protokolu a DSP (nahrávka build/rx/iqs_cw.cf32)
+tools/nb_rx.sh                       # bridge + browser on http://localhost:8080 (Ctrl-C ends the bridge)
+tools/web_bridge.py                  # the bridge alone
+node web/test/test.mjs               # tests of the protocol and DSP (recording build/rx/iqs_cw.cf32)
 ```
 
-**Most (`tools/web_bridge.py`) je výchozí cesta:** otevře porty z `tools/nbports.py` přes pyserial a předá bajty stránce
-přes WebSocket (`/serial/s3`, `/serial/c3`); stránka ho pozná podle `/bridge.json` a funguje v libovolném prohlížeči.
-Servírovaná jiným serverem (`python3 -m http.server -d web`), nebo s parametrem `?webserial`
-(http://localhost:8080/?webserial), použije Web Serial s výběrem portu.
+| URL | Boards through |
+|---|---|
+| http://localhost:8080 | the bridge (WebSocket, any browser, no port chooser; ports from `tools/nbports.py`) |
+| http://localhost:8080/?webserial | Web Serial (Chrome / Edge; the browser asks for the port) |
+| http://localhost:8080/?demo | no board: a synthetic keyed tone, to check the page and the audio |
 
-**Web Serial a „The device has been lost“** (Chrome na Linuxu, hned po otevření): pyserial, esptool i `idf.py monitor`
-nechávají na portu `VMIN = 0, VTIME = 0` (`stty -F /dev/ttyACM1 -a` → `min = 0`). Chrome si VMIN nenastaví, jeho první
-`read()` vrátí 0 bajtů a bere to jako odpojení. Náprava: `stty -F /dev/ttyACMn min 1 time 0` (když port nikdo nedrží);
-naše nástroje (`nbports.tty_release`) to po sobě vracejí samy. Ověřeno 9. 11. 2026: port s `min 1` funguje, s `min 0` ne.
+- **Connect S3 / Connect C3**: the page checks `INFO` and refuses a swapped port.
+- **Presets**: the C3 test beacon and the Czech 13 cm beacons from the ČRK list (OK0EA 2320.804 JO70UP, …; check the list),
+  and the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s. A preset restarts a running stream on its centre.
+- **Start**: the S3's LO 4 MHz below the centre (mode 2), the PLL's rounding computed → exact frequencies on the shared TCXO.
+- **Tuning**: click the spectrum or the waterfall (snaps to the strongest bin within ±5 px), wheel over the waterfall 10 Hz
+  (Shift 100 Hz), or the listen field. Zoom around the listen frequency; the axis between spectrum and waterfall in MHz.
+- **CW**: shift to 0 Hz, decimation to 7812.5 Hz, complex filter (width), BFO pitch, AGC; audio through an AudioWorklet.
+- **C3**: CW ON / OFF, AMP (power at the connector: 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm; the board also radiates
+  directly: the S3 next to it hears it strongly even at AMP 1), F.
 
-- **Připojit S3** / **Připojit C3**: přes most rovnou podle `tools/nbports.py`; přes Web Serial jsou oba porty „USB JTAG/serial
-  debug unit“ (Espressif). Stránka ověří `INFO` a při záměně ohlásí chybu.
-- **Start**: LO S3 4 MHz pod středem (mód 2), PLL zaokrouhlení dopočítané → kmitočty na Hz při společném TCXO.
-- **Ladění**: klik do spektra nebo vodopádu (přichytí se k nejsilnějšímu binu ±5 px), kolečko nad vodopádem 10 Hz
-  (Shift 100 Hz), nebo pole „poslech“. Zoom kolem poslouchaného kmitočtu.
-- **CW**: posun na 0 Hz, decimace na 7812,5 Hz, komplexní filtr (šířka), BFO tón, AGC; zvuk přes AudioWorklet.
-- **C3**: CW ON / OFF, AMP (výkon: 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm), F.
+`iqs.js` (protocol, no DOM) and `dsp.js` (FFT, CW demodulator) are shared by the page and the Node tests.
 
-Moduly `iqs.js` (protokol, bez DOM) a `dsp.js` (FFT, CW demodulátor) jsou společné pro stránku i testy v Node.
+## Web Serial and "The device has been lost"
+
+Chrome on Linux, at once after opening a port: pyserial, esptool and `idf.py monitor` leave `VMIN = 0, VTIME = 0` on the
+port (`stty -F /dev/ttyACM1 -a` → `min = 0`). Chrome does not set VMIN, its first `read()` returns 0 bytes and it takes that
+for a lost device. Fix: `stty -F /dev/ttyACMn min 1 time 0` (while no program holds the port); our tools
+(`nbports.tty_release`) leave `min 1` themselves. Shown on the bench 2026-11-09: a port with `min 1` works, with `min 0` not.
+While Chrome has opened a port it sets exclusive mode (TIOCEXCL): until the last program closes it, others get "busy".

@@ -235,12 +235,12 @@ export class WsPort {
     this.ws = ws;
     await new Promise((resolve, reject) => {
       ws.onopen = resolve;
-      ws.onerror = () => reject(new Error(`most neodpovídá: ${this.url}`));
+      ws.onerror = () => reject(new Error(`the bridge does not answer: ${this.url}`));
     });
     this.readable = new ReadableStream({
       start: (c) => {
         ws.onmessage = (e) => c.enqueue(new Uint8Array(e.data));
-        ws.onclose = (e) => { try { e.code === 1000 ? c.close() : c.error(new Error(`most zavřel spojení (${e.code} ${e.reason})`)); } catch (x) { /* closed */ } };
+        ws.onclose = (e) => { try { e.code === 1000 ? c.close() : c.error(new Error(`the bridge closed the connection (${e.code} ${e.reason})`)); } catch (x) { /* closed */ } };
       },
     });
     this.writable = new WritableStream({ write: (chunk) => ws.send(chunk) });
