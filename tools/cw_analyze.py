@@ -158,6 +158,9 @@ def analyse(x, meta, args):
     ftone, sf, sp = find_tone(x, fs, args.hump, lo, args.band)
     print(f"{len(x) / fs:.1f} s at {fs:.0f} S/s, LO {lo:.0f} Hz: tone at {ftone:+.1f} Hz = {lo + ftone:.1f} Hz RF"
           + (f" ({lo + ftone - expect:+.1f} Hz from {expect:.0f})" if expect else ""))
+    if sp.max() - np.median(sp) < args.min_peak:
+        print(f"no tone: the strongest line is only {sp.max() - np.median(sp):.1f} dB above the median (--min-peak {args.min_peak:g})")
+        return None
     y, fs1 = to_baseband(x, fs, ftone, 8000.0)
     yk = lowpass(y, fs1, args.bw)                              # keying, frequency
     ye = lowpass(y, fs1, min(args.edge_bw, 0.45 * fs1))        # edges
@@ -307,6 +310,7 @@ def main():
     ap.add_argument("--edge-bw", type=float, default=2000.0, help="low-pass for the edge times, Hz (default 2000)")
     ap.add_argument("--expect", type=float, help="transmitter frequency in Hz (default: signal_hz of the sidecar)")
     ap.add_argument("--plot", metavar="BASE", help="write BASE.png")
+    ap.add_argument("--min-peak", type=float, default=30.0, help="dB of the tone above the median of the spectrum (default 30)")
     a = ap.parse_args()
     if a.selftest:
         return selftest(a)
@@ -315,8 +319,7 @@ def main():
     with open(a.base + ".json") as f:
         meta = json.load(f)
     x = np.fromfile(a.base + ".cf32", np.complex64)
-    analyse(x, meta, a)
-    return 0
+    return 0 if analyse(x, meta, a) else 1
 
 
 if __name__ == "__main__":
