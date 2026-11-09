@@ -109,6 +109,7 @@ function onSamples(iq) {
   st.spec?.push(iq);
   if (st.node && st.demod) {
     const a = st.demod.process(iq);
+    st.audioSamples += a.length;
     if (a.length) st.node.port.postMessage(a, [a.buffer]);
   }
 }
@@ -158,17 +159,23 @@ $("wf").addEventListener("wheel", (e) => { e.preventDefault(); setListen(st.list
 
 $("audio").onclick = async () => {
   if (st.audio) {
-    await st.audio.close(); st.audio = null; st.node = null;
+    await st.audio.close().catch(() => {}); st.audio = null; st.node = null;
     $("audio").textContent = "Zvuk zap."; $("audio").classList.remove("on");
+    log("zvuk vypnut");
     return;
   }
-  const rate = st.demod ? st.demod.audioRate : 7812.5;
-  st.audio = new AudioContext({ sampleRate: rate });
-  await st.audio.audioWorklet.addModule("audio-worklet.js");
-  st.node = new AudioWorkletNode(st.audio, "cw-player");
-  st.node.connect(st.audio.destination);
-  st.node.port.postMessage({ volume: Number($("vol").value) });
-  $("audio").textContent = "Zvuk vyp."; $("audio").classList.add("on");
+  try {
+    const rate = st.demod ? st.demod.audioRate : 7812.5;
+    const ctx = new AudioContext({ sampleRate: rate });
+    await ctx.audioWorklet.addModule("audio-worklet.js");
+    const node = new AudioWorkletNode(ctx, "cw-player");
+    node.connect(ctx.destination);
+    node.port.postMessage({ volume: Number($("vol").value) });
+    await ctx.resume();
+    st.audio = ctx; st.node = node; st.audioSamples = 0;
+    $("audio").textContent = "Zvuk vyp."; $("audio").classList.add("on");
+    log(`zvuk: ${ctx.sampleRate} Hz, ${ctx.state}` + (st.demod ? "" : " – zatím bez streamu, dej Start"), "ok");
+  } catch (e) { log("zvuk: " + e.message, "err"); }
 };
 $("vol").oninput = () => st.node?.port.postMessage({ volume: Number($("vol").value) });
 
@@ -252,7 +259,8 @@ function drawSpectrum(db) {
   $("level").textContent = `${lv.toFixed(1)} dBFS, ${snr.toFixed(0)} dB nad šumem (bin ${bin.toFixed(1)} Hz)`;
   $("meter").style.width = `${Math.max(0, Math.min(100, snr * 2))}%`;
   const s = st.s3?.parser.stats, sec = (performance.now() - st.t0) / 1e3;
-  if (s) $("stats").textContent = `${(st.samples / sec / 1e3).toFixed(1)} kS/s · rámce ${s.frames} · CRC ${s.crcBad} · mezery ${s.gaps} (${s.gapSamples})`;
+  if (s) $("stats").textContent = `${(st.samples / sec / 1e3).toFixed(1)} kS/s · rámce ${s.frames} · CRC ${s.crcBad} · mezery ${s.gaps} (${s.gapSamples})` +
+    (st.audio ? ` · zvuk ${st.audio.state}, ${st.audioSamples} vz.` : "");
 }
 
 /* ------------------------------------------------------------ C3 */
@@ -314,3 +322,5 @@ $("c3set").onclick = async () => {
 };
 
 bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Bez mostu (tools/web_bridge.py) je potřeba Web Serial: Chrome nebo Edge na http://localhost.", "err"); });
+
+window.nb = st;                        // for debugging from the console
