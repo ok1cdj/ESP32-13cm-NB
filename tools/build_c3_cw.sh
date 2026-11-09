@@ -19,6 +19,7 @@ rsync -a --delete --exclude build --exclude sdkconfig --exclude sdkconfig.old "$
     echo "# CONFIG_DATV_BUILTIN_BEACON is not set"
     [ -z "$SDKCONFIG_EXTRA" ] || printf '%s\n' $SDKCONFIG_EXTRA
 } >> "$FW/src/sdkconfig.defaults"
+git -C "$SRC" describe --always --dirty > "$FW/src/version.txt"   # INFO shows the firmware's version, not this repository's
 cd "$FW/src"
 # a new sdkconfig whenever sdkconfig.defaults changed: an existing sdkconfig keeps its old values otherwise
 cmp -s sdkconfig.defaults ../sdkconfig.defaults.last || { rm -f sdkconfig; cp sdkconfig.defaults ../sdkconfig.defaults.last; }
