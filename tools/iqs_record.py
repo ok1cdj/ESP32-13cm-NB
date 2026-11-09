@@ -28,7 +28,7 @@ import zlib
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from nbports import RX_PORT  # noqa: E402
+from nbports import RX_PORT, tty_release  # noqa: E402
 
 RING_HZ = 16e6
 PLL_STEP = 30e6 / 65536          # Hz
@@ -150,6 +150,13 @@ def main():
     ap.add_argument("--info", action="store_true", help="print INFO, VERSION?, LIMITS?, RANGE? and exit")
     a = ap.parse_args()
     esp = Esp(a.port)
+    try:
+        return run(esp, a, ap)
+    finally:
+        tty_release(esp.s)
+
+
+def run(esp, a, ap):
     if a.info:
         for c in ("INFO", "VERSION?", "LIMITS?", "RANGE?", "TRANSPORT?"):
             print(esp.cmd(c).splitlines()[-1])

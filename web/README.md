@@ -8,11 +8,14 @@ tools/web_bridge.py                                        # stránka + most k d
 node web/test/test.mjs                                     # testy protokolu a DSP (nahrávka build/rx/iqs_cw.cf32)
 ```
 
-**Most (`tools/web_bridge.py`) je výchozí cesta:** Web Serial v Chrome 140 na tomhle Linuxu hlásí „The device has been lost“
-1 ms po otevření kterékoli desky (pyserial ze stejných portů čte normálně; v kernel logu žádné odpojení). Most otevře porty
-z `tools/nbports.py` přes pyserial a předá bajty stránce přes WebSocket (`/serial/s3`, `/serial/c3`); stránka ho pozná
-podle `/bridge.json` a funguje pak v libovolném prohlížeči. Servírovaná jiným serverem (`python3 -m http.server -d web`)
-použije Web Serial s výběrem portu.
+**Most (`tools/web_bridge.py`) je výchozí cesta:** otevře porty z `tools/nbports.py` přes pyserial a předá bajty stránce
+přes WebSocket (`/serial/s3`, `/serial/c3`); stránka ho pozná podle `/bridge.json` a funguje v libovolném prohlížeči.
+Servírovaná jiným serverem (`python3 -m http.server -d web`) použije Web Serial s výběrem portu.
+
+**Web Serial a „The device has been lost“** (Chrome na Linuxu, hned po otevření): pyserial, esptool i `idf.py monitor`
+nechávají na portu `VMIN = 0, VTIME = 0` (`stty -F /dev/ttyACM1 -a` → `min = 0`). Chrome si VMIN nenastaví, jeho první
+`read()` vrátí 0 bajtů a bere to jako odpojení. Náprava: `stty -F /dev/ttyACMn min 1 time 0` (když port nikdo nedrží);
+naše nástroje (`nbports.tty_release`) to po sobě vracejí samy. Ověřeno 9. 11. 2026: port s `min 1` funguje, s `min 0` ne.
 
 - **Připojit S3** / **Připojit C3**: přes most rovnou podle `tools/nbports.py`; přes Web Serial jsou oba porty „USB JTAG/serial
   debug unit“ (Espressif). Stránka ověří `INFO` a při záměně ohlásí chybu.

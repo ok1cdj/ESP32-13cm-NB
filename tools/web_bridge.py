@@ -4,8 +4,9 @@
     tools/web_bridge.py                 (then http://localhost:8080 in any browser)
     tools/web_bridge.py --port 8081
 
-Web Serial in Chrome 140 on this Linux reports "The device has been lost" 1 ms after opening either board, while pyserial reads
-the same ports fine; the page therefore talks to the boards through this bridge when it is served by it (it asks /bridge.json).
+The page talks to the boards through this bridge when it is served by it (it asks /bridge.json), in any browser. (Web Serial
+in Chrome on Linux fails on a port that pyserial, esptool or idf.py monitor used last: they leave VMIN = 0, Chrome's first read
+returns 0 bytes and it reports "The device has been lost"; see nbports.tty_release.)
 ws://localhost:PORT/serial/s3 and /serial/c3 carry the raw bytes both ways (ports from tools/nbports.py). One client per board:
 a new connection replaces the old one. Listens on 127.0.0.1 only.
 """
@@ -23,7 +24,7 @@ from websockets.datastructures import Headers
 from websockets.http11 import Response
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from nbports import RX_PORT, TX_PORT  # noqa: E402
+from nbports import RX_PORT, TX_PORT, tty_release  # noqa: E402
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 BOARDS = {"/serial/s3": RX_PORT, "/serial/c3": TX_PORT}
@@ -94,7 +95,7 @@ async def handler(ws):
     finally:
         stop.set()
         t.join(1)
-        ser.close()
+        tty_release(ser)                                       # VMIN back to 1: Web Serial works on the port afterwards
         if active.get(path) is ws:
             del active[path]
         log(path, "released")

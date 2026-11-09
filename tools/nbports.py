@@ -10,3 +10,21 @@ RX_PORT = os.environ.get("RX_PORT", "/dev/serial/by-id/usb-Espressif_USB_JTAG_se
 SA_PORT = os.environ.get("SA_PORT", "/dev/serial/by-id/usb-tinysa.org_tinySA4_400-if00")                                   # tinySA Ultra+ ZS-407
 # Python of ESP32-DATV-RX (espdr, the S3 receiver tools)
 RX_VENV = os.environ.get("RX_VENV", os.path.expanduser("~/projekty/ESP32-ATV/third_party/ESP32-DATV-RX/.venv/bin/python"))
+
+
+def tty_release(ser):
+    """Close a pyserial port leaving VMIN = 1, VTIME = 0 on the tty.
+
+    pyserial sets VMIN = VTIME = 0 and the tty keeps them after the close; Chrome's Web Serial on Linux takes the settings as it
+    finds them, its first read() then returns 0 bytes and it reports "The device has been lost". esptool and idf.py monitor do
+    the same; after them: stty -F /dev/ttyACMn min 1 time 0
+    """
+    import termios
+    try:
+        attrs = termios.tcgetattr(ser.fd)
+        attrs[6][termios.VMIN], attrs[6][termios.VTIME] = 1, 0
+        termios.tcsetattr(ser.fd, termios.TCSANOW, attrs)
+    except (termios.error, OSError, TypeError, AttributeError):
+        pass                                                   # not a tty, or already closed
+    ser.close()
+
