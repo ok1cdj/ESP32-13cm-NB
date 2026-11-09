@@ -1,0 +1,89 @@
+<!doctype html>
+<!-- NB 13 cm receiver: ESP32-S3 (ESP-SDR IQS firmware) over Web Serial, spectrum, waterfall, CW audio; C3 CW beacon control.
+     Serve over http://localhost (Web Serial and the audio worklet need it):  python3 -m http.server 8080 --bind 127.0.0.1 -d web
+     then open http://localhost:8080 in Chrome / Edge. -->
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NB 13 cm přijímač</title>
+<style>
+  :root { --bg: #15171a; --panel: #1f2226; --text: #d8dadd; --dim: #8a9097; --acc: #ff9f0a; --line: #33373c; --ok: #4cd964; --err: #ff453a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { padding: 8px 16px; display: flex; gap: 16px; align-items: baseline; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; }
+  header .freq { font: 600 22px/1 ui-monospace, monospace; color: var(--acc); }
+  main { padding: 8px 16px; display: grid; gap: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; background: var(--panel); padding: 8px 10px; border-radius: 6px; }
+  .row b { min-width: 28px; }
+  label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+  input, select, button { background: #2a2e33; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  input[type=number] { width: 7.5em; }
+  input.w5 { width: 5em; }
+  button { cursor: pointer; }
+  button.on { border-color: var(--acc); color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  .stat { font: 12px ui-monospace, monospace; color: var(--dim); }
+  .ok { color: var(--ok); } .err { color: var(--err); }
+  canvas { width: 100%; display: block; background: #000; border-radius: 4px; cursor: crosshair; }
+  #spec { height: 220px; }
+  #wf { height: 320px; }
+  #log { font: 12px ui-monospace, monospace; color: var(--dim); max-height: 7.5em; overflow: auto; white-space: pre-wrap; background: var(--panel); padding: 6px 10px; border-radius: 6px; }
+  .meter { width: 160px; height: 10px; background: #2a2e33; border-radius: 5px; overflow: hidden; }
+  .meter div { height: 100%; width: 0; background: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>NB 13 cm přijímač</h1>
+  <span>poslech <span class="freq" id="lfreq">—</span> MHz</span>
+  <span class="stat" id="stats"></span>
+</header>
+<main>
+  <div class="row">
+    <b>S3</b>
+    <button id="s3conn">Připojit S3</button>
+    <span class="stat" id="s3info">nepřipojeno</span>
+    <label>střed <input type="number" id="center" step="0.001" value="2320.050"> MHz</label>
+    <label>vzorkování <select id="rate">
+      <option value="64,8">250 kS/s · 8 bit</option>
+      <option value="128,16">125 kS/s · 16 bit</option>
+      <option value="256,16" selected>62,5 kS/s · 16 bit</option>
+      <option value="512,16">31,25 kS/s · 16 bit</option>
+      <option value="1024,16">15,6 kS/s · 16 bit</option>
+    </select></label>
+    <label>zisk <select id="gainmode"><option value="auto">AGC</option><option value="man">ručně</option></select>
+      <input type="number" id="gain" class="w5" min="0" max="82" value="60" disabled></label>
+    <button id="start" disabled>Start</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+  <div class="row">
+    <b>CW</b>
+    <label>poslech <input type="number" id="listen" step="0.000001" value="2320.050000"> MHz</label>
+    <label>šířka <select id="bw"><option>250</option><option selected>500</option><option>1000</option><option>2400</option></select> Hz</label>
+    <label>tón <input type="number" id="pitch" class="w5" value="700"> Hz</label>
+    <button id="audio">Zvuk zap.</button>
+    <label>hlasitost <input type="range" id="vol" min="0" max="1" step="0.05" value="0.7"></label>
+    <label>úroveň <div class="meter"><div id="meter"></div></div> <span class="stat" id="level"></span></label>
+    <label>zoom <select id="zoom"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option><option value="16">16×</option></select></label>
+    <label>rozsah <input type="number" id="range" class="w5" value="70"> dB</label>
+  </div>
+  <canvas id="spec"></canvas>
+  <canvas id="wf"></canvas>
+  <div class="row">
+    <b>C3</b>
+    <button id="c3conn">Připojit C3</button>
+    <span class="stat" id="c3info">nepřipojeno</span>
+    <button id="cwon" disabled>CW ON</button>
+    <button id="cwoff" disabled>CW OFF</button>
+    <label>F <input type="number" id="c3f" step="0.001" value="2320.050"> MHz</label>
+    <label>AMP <input type="number" id="c3amp" class="w5" min="1" max="480" value="10"></label>
+    <button id="c3set" disabled>Nastavit</button>
+    <span class="stat">AMP 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm</span>
+  </div>
+  <div id="log"></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
