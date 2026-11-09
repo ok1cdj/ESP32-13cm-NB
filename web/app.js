@@ -9,7 +9,9 @@ const FFT_N = 4096;
 // Served by tools/web_bridge.py: the boards come through its WebSocket (Web Serial on this Linux loses the port at once);
 // served by a plain web server: Web Serial with the browser's port chooser.
 let bridge = null;
-const bridgeReady = fetch("bridge.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+// ?webserial: Web Serial even when the bridge serves the page
+const bridgeReady = (new URLSearchParams(location.search).has("webserial") ? Promise.resolve(null)
+  : fetch("bridge.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null))
   .then((b) => { bridge = b; if (b) log(`most: S3 ${b.ports.s3}, C3 ${b.ports.c3}`, "ok"); return b; });
 
 async function pickPort(which) {

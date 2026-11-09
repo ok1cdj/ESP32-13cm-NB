@@ -10,7 +10,8 @@ node web/test/test.mjs                                     # testy protokolu a D
 
 **Most (`tools/web_bridge.py`) je výchozí cesta:** otevře porty z `tools/nbports.py` přes pyserial a předá bajty stránce
 přes WebSocket (`/serial/s3`, `/serial/c3`); stránka ho pozná podle `/bridge.json` a funguje v libovolném prohlížeči.
-Servírovaná jiným serverem (`python3 -m http.server -d web`) použije Web Serial s výběrem portu.
+Servírovaná jiným serverem (`python3 -m http.server -d web`), nebo s parametrem `?webserial`
+(http://localhost:8080/?webserial), použije Web Serial s výběrem portu.
 
 **Web Serial a „The device has been lost“** (Chrome na Linuxu, hned po otevření): pyserial, esptool i `idf.py monitor`
 nechávají na portu `VMIN = 0, VTIME = 0` (`stty -F /dev/ttyACM1 -a` → `min = 0`). Chrome si VMIN nenastaví, jeho první
