@@ -132,17 +132,26 @@ export class S3Radio {
   async open(port) {
     this.port = port;
     await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
+    // DTR and RTS both set (as z2-web-sdr does): another combination of the two resets the S3's native USB port
+    try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
     this.writer = port.writable.getWriter();
-    this._readLoop();
+    this.readDone = this._readLoop();
     await new Promise((r) => setTimeout(r, 300));
+    // a stream from an earlier session may still run: any byte stops it; then wait until the line is quiet
+    await this.send("");
+    let bytes = -1;
+    for (let i = 0; i < 30 && bytes !== this.bytes; i++) { bytes = this.bytes; await new Promise((r) => setTimeout(r, 150)); }
+    this.parser.len = 0;
+    this.waiters = [];
   }
 
   async close() {
     try { if (this.streaming) await this.stop(); } catch (e) { /* closing anyway */ }
     this.closing = true;
-    try { await this.reader.cancel(); } catch (e) { /* already gone */ }
-    try { this.writer.releaseLock(); } catch (e) { /* already gone */ }
-    await this.port.close();
+    try { await this.reader?.cancel(); } catch (e) { /* already gone */ }
+    try { await this.readDone; } catch (e) { /* already gone */ }
+    try { this.writer?.releaseLock(); } catch (e) { /* already gone */ }
+    try { await this.port.close(); } catch (e) { /* lost or never opened */ }
   }
 
   async _readLoop() {
@@ -151,6 +160,7 @@ export class S3Radio {
       for (;;) {
         const { value, done } = await this.reader.read();
         if (done) break;
+        this.bytes = (this.bytes || 0) + value.length;
         this.parser.push(value);
       }
     } catch (e) {
@@ -211,3 +221,35 @@ export class S3Radio {
     return p;
   }
 }
+
+/**
+ * A serial port behind tools/web_bridge.py (WebSocket, raw bytes both ways) with the part of the Web Serial SerialPort interface
+ * that this page uses: open(), readable, writable, setSignals(), close(), getInfo().
+ */
+export class WsPort {
+  constructor(url) { this.url = url; }
+
+  async open() {
+    const ws = new WebSocket(this.url);
+    ws.binaryType = "arraybuffer";
+    this.ws = ws;
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = () => reject(new Error(`most neodpovídá: ${this.url}`));
+    });
+    this.readable = new ReadableStream({
+      start: (c) => {
+        ws.onmessage = (e) => c.enqueue(new Uint8Array(e.data));
+        ws.onclose = (e) => { try { e.code === 1000 ? c.close() : c.error(new Error(`most zavřel spojení (${e.code} ${e.reason})`)); } catch (x) { /* closed */ } };
+      },
+    });
+    this.writable = new WritableStream({ write: (chunk) => ws.send(chunk) });
+  }
+
+  async setSignals() { /* the bridge keeps the port as pyserial opens it */ }
+
+  async close() { this.ws?.close(1000); }
+
+  getInfo() { return { bridge: this.url }; }
+}
+

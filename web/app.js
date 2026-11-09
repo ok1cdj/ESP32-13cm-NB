@@ -1,10 +1,22 @@
 // The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, both over Web Serial.
-import { S3Radio } from "./iqs.js";
+import { S3Radio, WsPort } from "./iqs.js";
 import { Spectrum, CwDemod } from "./dsp.js";
 
 const $ = (id) => document.getElementById(id);
 const ESPRESSIF = { usbVendorId: 0x303a };
 const FFT_N = 4096;
+
+// Served by tools/web_bridge.py: the boards come through its WebSocket (Web Serial on this Linux loses the port at once);
+// served by a plain web server: Web Serial with the browser's port chooser.
+let bridge = null;
+const bridgeReady = fetch("bridge.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  .then((b) => { bridge = b; if (b) log(`most: S3 ${b.ports.s3}, C3 ${b.ports.c3}`, "ok"); return b; });
+
+async function pickPort(which) {
+  await bridgeReady;
+  if (bridge) return new WsPort(`ws://${location.host}${bridge[which]}`);
+  return navigator.serial.requestPort({ filters: [ESPRESSIF] });
+}
 
 const st = {
   s3: null, c3: null,
@@ -34,21 +46,40 @@ $("s3conn").onclick = async () => {
     $("start").disabled = $("stop").disabled = true;
     return;
   }
+  let r = null;
   try {
-    const port = await navigator.serial.requestPort({ filters: [ESPRESSIF] });
-    const r = new S3Radio(onSamples, (l) => { if (!l.startsWith("I (")) log("S3: " + l); });
+    const port = await pickPort("s3");
+    if (st.c3 && port === st.c3.port) throw new Error("tenhle port už má C3 – vyber druhý");
+    r = new S3Radio(onSamples, (l) => { if (!l.startsWith("I (")) log("S3: " + l); });
     await r.open(port);
-    const info = await r.cmd("INFO", (l) => /^(S3SDR|ESP32DATV|ERR)/.test(l));
+    let info = "";
+    for (let i = 0; i < 3 && !info; i++) info = await r.cmd("INFO", (l) => /^(S3SDR|ESP32DATV|ERR)/.test(l)).catch(() => "");
     if (!info.startsWith("S3SDR")) {
-      await r.close();
-      throw new Error(`tohle není S3 s ESP-SDR (${info}) – vyber druhý port`);
+      throw new Error(info ? `tohle není S3 s ESP-SDR (${info}) – vyber druhý port` : "S3 neodpovídá na INFO");
     }
     st.s3 = r;
     $("s3info").textContent = info; $("s3info").className = "stat ok";
     $("s3conn").textContent = "Odpojit S3";
     $("start").disabled = false;
-  } catch (e) { log("S3: " + e.message, "err"); }
+  } catch (e) {
+    log("S3: " + e.message, "err");
+    if (r) await r.close();
+  }
 };
+
+// a board that resets or is unplugged: drop it, so that "Připojit" starts afresh
+navigator.serial?.addEventListener("disconnect", (e) => {
+  if (st.s3 && e.target === st.s3.port) {
+    log("S3 odpojena (reset nebo USB)", "err");
+    st.s3 = null; $("s3conn").textContent = "Připojit S3"; $("s3info").textContent = "nepřipojeno"; $("s3info").className = "stat";
+    $("start").disabled = $("stop").disabled = true;
+  }
+  if (st.c3 && e.target === st.c3.port) {
+    log("C3 odpojena (reset nebo USB)", "err");
+    st.c3 = null; $("c3conn").textContent = "Připojit C3"; $("c3info").textContent = "nepřipojeno";
+    for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = true;
+  }
+});
 
 $("gainmode").onchange = () => { $("gain").disabled = $("gainmode").value !== "man"; };
 
@@ -238,8 +269,10 @@ $("c3conn").onclick = async () => {
     return;
   }
   try {
-    const port = await navigator.serial.requestPort({ filters: [ESPRESSIF] });
+    const port = await pickPort("c3");
+    if (st.s3 && port === st.s3.port) throw new Error("tenhle port už má S3 – vyber druhý");
     await port.open({ baudRate: 115200 });
+    try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
     const c3 = { port, writer: port.writable.getWriter(), reader: port.readable.getReader(), lines: [] };
     st.c3 = c3;
     (async () => {
@@ -280,4 +313,4 @@ $("c3set").onclick = async () => {
   await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
 };
 
-if (!("serial" in navigator)) log("Tenhle prohlížeč neumí Web Serial: použij Chrome nebo Edge (http://localhost).", "err");
+bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Bez mostu (tools/web_bridge.py) je potřeba Web Serial: Chrome nebo Edge na http://localhost.", "err"); });

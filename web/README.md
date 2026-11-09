@@ -4,12 +4,18 @@ ESP32-S3 s firmwarem ESP-SDR (IQS stream) přes Web Serial: spektrum, vodopád, 
 na C3 (ESP32-DATV-SA, větev `cw-beacon`).
 
 ```sh
-python3 -m http.server 8080 --bind 127.0.0.1 -d web      # pak v Chrome / Edge: http://localhost:8080
+tools/web_bridge.py                                        # stránka + most k deskám přes WebSocket: http://localhost:8080
 node web/test/test.mjs                                     # testy protokolu a DSP (nahrávka build/rx/iqs_cw.cf32)
 ```
 
-- **Připojit S3** / **Připojit C3**: oba porty jsou „USB JTAG/serial debug unit“ (Espressif); stránka ověří `INFO` a
-  při záměně ohlásí chybu.
+**Most (`tools/web_bridge.py`) je výchozí cesta:** Web Serial v Chrome 140 na tomhle Linuxu hlásí „The device has been lost“
+1 ms po otevření kterékoli desky (pyserial ze stejných portů čte normálně; v kernel logu žádné odpojení). Most otevře porty
+z `tools/nbports.py` přes pyserial a předá bajty stránce přes WebSocket (`/serial/s3`, `/serial/c3`); stránka ho pozná
+podle `/bridge.json` a funguje pak v libovolném prohlížeči. Servírovaná jiným serverem (`python3 -m http.server -d web`)
+použije Web Serial s výběrem portu.
+
+- **Připojit S3** / **Připojit C3**: přes most rovnou podle `tools/nbports.py`; přes Web Serial jsou oba porty „USB JTAG/serial
+  debug unit“ (Espressif). Stránka ověří `INFO` a při záměně ohlásí chybu.
 - **Start**: LO S3 4 MHz pod středem (mód 2), PLL zaokrouhlení dopočítané → kmitočty na Hz při společném TCXO.
 - **Ladění**: klik do spektra nebo vodopádu (přichytí se k nejsilnějšímu binu ±5 px), kolečko nad vodopádem 10 Hz
   (Shift 100 Hz), nebo pole „poslech“. Zoom kolem poslouchaného kmitočtu.
