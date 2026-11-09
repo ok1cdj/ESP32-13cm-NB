@@ -8,7 +8,7 @@ timing, and a simple CW decoder that prints the text of the beacon.
 
 Steps: the strongest line outside the receiver's hump around its LO (--hump) is the tone; it is mixed to 0 Hz, decimated to about
 8 kHz and low-pass filtered (--bw for keying and frequency, a wider filter for the edges). The envelope with a hysteresis threshold
-halfway between the key-down level and the noise gives the key; the dit length comes from the shortest key-down runs, and the runs
+at 40 % from the noise to the key-down level and the noise gives the key; the dit length comes from the shortest key-down runs, and the runs
 are read as dits, dahs, gaps and long carriers (longer than 5 dits). The frequency is the phase slope over 0.5 s pieces of key-down
 time; on the shared TCXO the difference to the transmitter's setting is only the receiver's PLL rounding and the analysis.
 """
@@ -90,7 +90,7 @@ def key_runs(e, thr, hyst):
 
 def decode(runs, fs):
     """Runs -> (text, dit seconds). Long key-down runs (> 5 dits) are carriers."""
-    ons = np.array([n / fs for _, n, on in runs if on])
+    ons = np.array([n / fs for _, n, on in runs[1:-1] if on])  # the first and last runs are cut by the recording
     if not len(ons):
         return "", float("nan")
     short = np.sort(ons[ons < 2.0])
@@ -100,6 +100,11 @@ def decode(runs, fs):
     lr = np.log(short)
     j = int(np.argmax(np.diff(lr))) if len(lr) > 1 else -1
     dit = float(np.median(short[:j + 1])) if j >= 0 and np.diff(lr)[j] > np.log(2) else float(np.median(short))
+    # the threshold below half lengthens marks and shortens spaces by the same amount: a dit is the mean of a dit mark and a dit space
+    offs = np.array([n / fs for _, n, on in runs[1:-1] if not on])
+    gap1 = offs[(offs > 0.5 * dit) & (offs < 1.5 * dit)]
+    if len(gap1):
+        dit = (dit + float(np.median(gap1))) / 2
     text, sym = [], ""
     for k, (_, n, on) in enumerate(runs):
         d = n / fs / dit
@@ -158,7 +163,7 @@ def analyse(x, meta, args):
     ye = lowpass(y, fs1, min(args.edge_bw, 0.45 * fs1))        # edges
     e = np.abs(yk)
     hi, noise = np.percentile(e, 97), np.percentile(e, 5)
-    thr, hyst = (hi + noise) / 2, 0.1 * (hi - noise)
+    thr, hyst = noise + 0.4 * (hi - noise), 0.1 * (hi - noise)    # below half: short dips (lost receiver samples) do not key
     runs = key_runs(e, thr, hyst)
     on_mask = np.zeros(len(e), bool)
     for s, m, on in runs:

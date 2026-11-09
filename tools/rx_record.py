@@ -4,6 +4,9 @@
     tools/rx_record.py out/cw1 --signal 2320.05e6 --seconds 30            (out/cw1.cf32 + out/cw1.json)
     tools/rx_record.py out/cw1 --signal 2320.05e6 --lo-offset -80e3 --gain 60 --decim 3
 
+espdr's line "samples lost" means units the S3 dropped: they are missing from the file (phase jumps, shorter time), so repeat the
+recording at a lower rate rather than analyse it.
+
 The S3 has a hump of +-25 kHz around its LO (LO leakage, ADC offset) and a spur of its own at multiples of 20 MHz (2320 MHz), so the
 LO goes --lo-offset away from the signal (default +80 kHz: the signal at -80 kHz, the C3's LO leakage 20 kHz further out, the
 2320 MHz spur beyond the band edge). cf32 = complex64, RF-up = frequency-up (espdr --convert cf32). The sidecar holds the LO the
@@ -28,7 +31,8 @@ def main():
     ap.add_argument("--signal", type=float, required=True, help="expected signal frequency in Hz")
     ap.add_argument("--lo-offset", type=float, default=80e3, help="LO minus signal in Hz (default 80000)")
     ap.add_argument("--seconds", type=int, default=30)
-    ap.add_argument("--decim", type=int, choices=(3, 4), default=3, help="3: 333 ksps, 4: 250 ksps")
+    ap.add_argument("--decim", type=int, choices=(3, 4), default=4,
+                    help="4: 250 ksps (default), 3: 333 ksps (through a busy USB hub the S3 drops units at 333 ksps)")
     ap.add_argument("--gain", type=int, default=60, help="gain selector 0..127 (default 60)")
     ap.add_argument("--port", default=RX_PORT)
     ap.add_argument("--note", default="", help="free text for the sidecar (set-up, attenuation ...)")
