@@ -147,6 +147,26 @@ Samotná nosná (prázdný text, `CARRIER 600`), tinySA ±50 kHz, RBW 1 kHz, út
 
 ![Výkon podle AMP](img/nb-cw-krok1-vykon.png)
 
+### Únik LO – proč nesedí kalibrace (10. 11. 2026)
+
+C3 přes 30 dB do tinySA, LO 2320,0296 MHz (NCO +20 kHz):
+
+| pokus | výsledek |
+|---|---|
+| `BDC TEST` (únik sám), tabulka z 9. 11. (−3,52 / +1,00) | −22 dBm (včera po kalibraci −40…−45 dBm) |
+| `BDC TEST`, korekce 0 / 0 | −24 dBm – korekce ±4 kódy kolem nuly skoro nic nemění |
+| 8× restart CW, stejné nastavení | −23,5 ± 0,7 dBm – restart (nová kalibrace PHY) za to nemůže |
+| mapa ±48 kódů po 12 + zjemnění | **minimum I −1,5 / Q +4,5: −43…−45 dBm**; posun o ~3,5 kódu proti 9. 11. |
+| CW AMP 30, tato korekce, 3 min | −33…−39 dBm (−25…−30 dBc), bez trendu; restart nic nemění |
+| hledání přímo v CW, AMP 100 | **I −1,5 / Q +5,6: −43,5…−46,5 dBc** (před tím −26 dBc) |
+
+- **Minimum korekce DC se mezi dny posouvá o jednotky kódů** (teplota / start čipu?) a je ostré: 3,5 kódu vedle = o 20 dB
+  horší. Během sezení (minuty) a přes restarty vysílače drží. Jedna uložená hodnota v NVS proto nestačí.
+- S nosnou je optimum mírně jinde (Q +1 kód) – kalibrovat v režimu, ve kterém se vysílá.
+- Náprava: kalibrace na začátku sezení (tinySA, ~2 min), lépe automaticky přes S3 (společné TCXO, koherentní – únik je
+  20 kHz od nosné a S3 ho měří rychle; viz `rx/cal_dc.py` v ESP32-ATV). Pro CW příjem únik 20 kHz vedle nevadí.
+- Skripty pokusů: `build/meas/lo_leak*.py` (mimo git).
+
 ### Klíčování (S3, koherentní záznam)
 
 | | rampa 5 ms | rampa 1 ms |
