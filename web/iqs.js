@@ -214,6 +214,16 @@ export class S3Radio {
     return { fs: RING_HZ / decim, centerHz: t.centerHz, reply: r };
   }
 
+  /** Retune a running stream ("T <MHz> <kHz>": PLL only, ~9 ms gap, the sample numbering goes on, the gap is flagged).
+   *  Returns the new centre (PLL rounding included). */
+  async retune(centerHz) {
+    if (!this.streaming) throw new Error("no stream to retune");
+    const t = tuning(centerHz);
+    this.retunes = (this.retunes || 0) + 1;
+    await this.send(`T ${t.mhz} ${t.fofsKhz}`);
+    return t.centerHz;
+  }
+
   async stop() {
     const p = this._wait((l) => l.startsWith("IQSEND"), 4000);
     await this.send("");                                   // any byte ends the stream

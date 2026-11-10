@@ -76,7 +76,28 @@ navigator.serial?.addEventListener("disconnect", (e) => {
   if (st.c3 && e.target === st.c3.port) { log("C3 gone (reset or USB)", "err"); disconnectedC3(); }
 });
 
-$("gainmode").onchange = () => { $("gain").disabled = $("gainmode").value !== "man"; };
+// The gain can only be set between runs: a running stream is stopped and started again with it (a short dropout).
+async function applyGain() {
+  $("gain").disabled = $("gainmode").value !== "man";
+  if (!st.s3?.streaming || st.calRunning) return;
+  await $("start").onclick();
+  log(`gain ${$("gainmode").value === "man" ? "manual " + $("gain").value : "AGC"} (stream restarted)`);
+}
+$("gainmode").onchange = applyGain;
+$("gain").onchange = applyGain;
+
+// A new centre: a running stream at the same rate is retuned in-stream (about 9 ms gap); else Start applies it.
+async function applyCenter() {
+  if (!st.s3?.streaming || st.calRunning) return;
+  if ($("rate").value !== st.rateKey) { await $("start").onclick(); return; }
+  try {
+    st.centerHz = await st.s3.retune(Number($("center").value) * 1e6);
+    setListen(st.listenHz);
+    log(`centre ${(st.centerHz / 1e6).toFixed(6)} MHz (retuned in the stream)`);
+  } catch (e) { log("retune: " + e.message, "err"); }
+}
+$("center").onchange = applyCenter;
+$("rate").onchange = () => { if (st.s3?.streaming && !st.calRunning) $("start").onclick(); };
 
 $("start").onclick = async () => {
   const [decim, bits] = $("rate").value.split(",").map(Number);
@@ -84,7 +105,7 @@ $("start").onclick = async () => {
   try {
     if (st.s3.streaming) await st.s3.stop();
     const r = await st.s3.start(Number($("center").value) * 1e6, decim, bits, gain);
-    st.fs = r.fs; st.centerHz = r.centerHz;
+    st.fs = r.fs; st.centerHz = r.centerHz; st.rateKey = $("rate").value; st.s3.retunes = 0;
     st.spec = new Spectrum(FFT_N, Math.max(1, Math.round(st.fs / FFT_N / 15)), bits === 16 ? 32768 : 128, drawSpectrum);
     st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
     setListen(st.listenHz);
@@ -258,6 +279,7 @@ function drawSpectrum(db) {
   $("meter").style.width = `${Math.max(0, Math.min(100, snr * 2))}%`;
   const s = st.s3?.parser.stats, sec = (performance.now() - st.t0) / 1e3;
   if (s) $("stats").textContent = `${(st.samples / sec / 1e3).toFixed(1)} kS/s · frames ${s.frames} · CRC ${s.crcBad} · gaps ${s.gaps} (${s.gapSamples})` +
+    (st.s3.retunes ? ` · retunes ${st.s3.retunes}` : "") +
     (st.audio ? ` · audio ${st.audio.state}, ${st.audioSamples} samples` : "");
 }
 
@@ -297,7 +319,7 @@ $("preset").onchange = async () => {
   if (opt) $("rate").value = opt.value;
   if (Number(decim) <= 64) $("zoom").value = "1";
   setListen(Number(listen) * 1e6);
-  if (st.s3?.streaming) $("start").onclick();             // restart the stream on the new centre
+  await applyCenter();                                    // retune in the stream, or restart it for a new rate
 };
 
 /* ------------------------------------------------------------ C3 */
