@@ -42,7 +42,16 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
   linear to AMP 100 ≈ +2.5 dBm, compressed above AMP 150, at most ≈ +12.5 dBm; the board also radiates directly: the S3 next
   to it hears it strongly even at AMP 1), F.
 
-`iqs.js` (protocol, no DOM) and `dsp.js` (FFT, CW demodulator) are shared by the page and the Node tests.
+- **TX (USB through the C3, `SSB ON`)**: source microphone, audio file (WAV …), one tone or two tones; **TX on** toggles,
+  **PTT (hold)** transmits while held. The page makes the analytic USB signal at the C3's rate (50 kS/s): microphone and file
+  through `TxChain` (AudioContext at 50 kHz, decimation to 10 kHz, complex band pass 300–2700 Hz, AGC up to +20 dB with the
+  peak at 0.9, interpolation back), tones directly; int16 I, Q to the C3, paced by its fill reports (ring kept near 4000
+  pairs = 80 ms; the microphone drops a chunk when the ring runs full and adds silence when it runs low). Stopping the stream
+  is the PTT: the C3 goes off 0.5 s after the last data. F and AMP are the C3 row's (AMP ≤ 50–100 for linear SSB).
+  Bench 2026-11-10: tone 1 kHz at F + 995 Hz on the S3 in USB mode, no underrun while transmitting; two tones equal.
+  Use headphones with the microphone (the receiver's audio would feed back).
+
+`iqs.js` (protocol, no DOM) and `dsp.js` (FFT, demodulator, TX chain) are shared by the page and the Node tests.
 
 ## Web Serial and "The device has been lost"
 

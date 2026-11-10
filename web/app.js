@@ -1,6 +1,6 @@
 // The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, through tools/web_bridge.py or Web Serial.
 import { S3Radio, WsPort, pllActual } from "./iqs.js";
-import { Spectrum, Demod } from "./dsp.js";
+import { Spectrum, Demod, TxChain, TestTones } from "./dsp.js";
 
 const $ = (id) => document.getElementById(id);
 const ESPRESSIF = { usbVendorId: 0x303a };
@@ -354,7 +354,8 @@ $("preset").onchange = async () => {
 function disconnectedC3() {
   st.c3 = null;
   $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-  for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
+  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = true;
+  if (st.tx) stopTx();
 }
 
 async function closeC3(c3) {
@@ -372,17 +373,29 @@ async function connectC3(port) {
   try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
   const c3 = { port, writer: port.writable.getWriter(), reader: port.readable.getReader(), lines: [] };
   c3.readDone = (async () => {
-    let text = "";
+    let buf = new Uint8Array(0);
     try {
       for (;;) {
         const { value, done } = await c3.reader.read();
         if (done) break;
-        text += new TextDecoder().decode(value);
-        let n;
-        while ((n = text.indexOf("\n")) >= 0) {
-          const l = text.slice(0, n).replace(/\r$/, ""); text = text.slice(n + 1);
+        const nb = new Uint8Array(buf.length + value.length); nb.set(buf); nb.set(value, buf.length); buf = nb;
+        let p = 0;
+        for (;;) {
+          if (buf[p] === 0xB7) {                                // a fill report of the SSB stream
+            if (buf.length - p < 4) break;
+            c3.fill = buf[p + 1] | buf[p + 2] << 8; c3.under = buf[p + 3]; c3.fillAt = performance.now();
+            p += 4;
+            continue;
+          }
+          const n = buf.indexOf(0x0a, p);
+          if (n < 0) break;
+          const raw = buf.subarray(p, n);
+          p = n + 1;
+          if (!raw.every((b) => (b >= 0x20 && b < 0x7f) || b === 0x0d)) continue;
+          const l = new TextDecoder().decode(raw).replace(/\r$/, "");
           if (l) { log("C3: " + l); c3.lines.push(l); if (l.startsWith("CW ON")) $("c3info").textContent = l; }
         }
+        buf = buf.slice(p);
       }
     } catch (e) { if (!c3.closing) log("C3 read: " + e, "err"); }
     try { c3.reader.releaseLock(); } catch (e) { /* gone */ }
@@ -395,7 +408,7 @@ async function connectC3(port) {
   }
   st.c3 = c3;
   $("c3conn").textContent = "Disconnect C3";
-  for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = false;
+  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = false;
 }
 
 $("c3conn").onclick = async () => {
@@ -584,6 +597,111 @@ $("dccal").onclick = async () => {
     $("dccal").disabled = !st.c3;
   }
 };
+
+/* ------------------------------------------------------------ USB transmit through the C3 (SSB ON)
+ * The page makes the analytic USB signal at the C3's rate (50 kS/s): the microphone or an audio file through TxChain (band pass
+ * 300-2700 Hz, AGC), or test tones directly; the int16 I, Q pairs go to the C3 after its OK line. The C3's fill reports pace the
+ * stream: files and tones are topped up to about TX_FILL pairs, the microphone (real time) drops a chunk when the ring runs
+ * full (latency) and adds silence when it runs low. Stopping the stream is the PTT: the C3 goes off 0.5 s later by itself.
+ * The C3 transmits at its F and AMP: into a dummy load or an attenuator only. */
+const TX_FILL = 4000;                                        // pairs in the C3's ring (8192 = 164 ms) the stream aims at
+function showTxUi() {
+  const s = $("txsrc").value;
+  $("txtl").style.display = s === "tone" || s === "two" ? "" : "none";
+  $("txt2").style.display = s === "two" ? "" : "none";
+  $("txfl").style.display = s === "file" ? "" : "none";
+  $("txgl").style.display = s === "mic" || s === "file" ? "" : "none";
+}
+$("txsrc").onchange = showTxUi;
+showTxUi();
+$("txgain").onchange = () => st.tx?.chain?.setGainDb(Number($("txgain").value));
+
+function sendPairs(iq) {                                     // Float32 interleaved I, Q in -1..1 -> int16 LE to the C3
+  const v = new Int16Array(iq.length);
+  let pk = 0;
+  for (let k = 0; k < iq.length; k++) v[k] = Math.round(Math.max(-1, Math.min(1, iq[k])) * 32767);
+  for (let k = 0; k < iq.length; k += 2) pk = Math.max(pk, Math.hypot(iq[k], iq[k + 1]));
+  st.tx.peak = Math.max(pk, st.tx.peak * 0.9);
+  st.tx.sent += iq.length / 2;
+  st.tx.writes = st.tx.writes.then(() => st.c3.writer.write(new Uint8Array(v.buffer))).catch((e) => log("TX write: " + e.message, "err"));
+}
+
+async function startTx() {
+  if (st.tx || !st.c3) return;
+  const src = $("txsrc").value;
+  const tx = st.tx = { src, running: true, sent: 0, peak: 0, writes: Promise.resolve(), t0: performance.now() };
+  try {
+    $("txbtn").textContent = "TX off"; $("txbtn").classList.add("on"); $("ptt").classList.add("on");
+    await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`); await new Promise((r) => setTimeout(r, 250));
+    await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`); await new Promise((r) => setTimeout(r, 250));
+    st.c3.lines.length = 0; st.c3.fill = 0; st.c3.under = 0;
+    await c3send("SSB ON");
+    let ok = null;
+    for (let i = 0; i < 30 && !ok; i++) { await new Promise((r) => setTimeout(r, 100)); ok = st.c3.lines.find((l) => /^(OK SSB|ERR)/.test(l)); }
+    if (!ok || ok.startsWith("ERR")) throw new Error(ok || "no OK SSB from the C3");
+    const fs = Number((/RATE (\d+)/.exec(ok) || [0, 50000])[1]);
+    sendPairs(new Float32Array(2 * 2000));                   // 40 ms of silence first: no underrun at the start
+    if (src === "tone" || src === "two") {
+      const tones = new TestTones(fs, src === "tone" ? [Number($("txt1").value)] : [Number($("txt1").value), Number($("txt2").value)]);
+      tx.pump = setInterval(() => { if (tx.running && (st.c3.fill || 0) < TX_FILL) sendPairs(tones.next(1250)); }, 10);
+    } else {
+      tx.chain = new TxChain(fs, { gainDb: Number($("txgain").value) });
+      tx.ctx = new AudioContext({ sampleRate: fs });
+      if (src === "mic") {
+        tx.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+        await tx.ctx.audioWorklet.addModule("audio-tx-worklet.js");
+        tx.node = new AudioWorkletNode(tx.ctx, "tx-capture", { numberOfOutputs: 0 });
+        tx.ctx.createMediaStreamSource(tx.stream).connect(tx.node);
+        let acc = [], n = 0;
+        tx.node.port.onmessage = (e) => {
+          if (!tx.running) return;
+          acc.push(e.data); n += e.data.length;
+          if (n < 1000) return;
+          const a = new Float32Array(n); let o = 0; for (const c of acc) { a.set(c, o); o += c.length; } acc = []; n = 0;
+          const iq = tx.chain.process(a), fill = st.c3.fill || 0;
+          if (fill > 7000) return;                            // the ring is full: drop, so that the latency stays low
+          if (fill < 1000) sendPairs(new Float32Array(2 * 500));
+          sendPairs(iq);
+        };
+      } else {
+        const f = $("txfile").files[0];
+        if (!f) throw new Error("choose an audio file first");
+        const audio = (await tx.ctx.decodeAudioData(await f.arrayBuffer())).getChannelData(0);
+        let pos = 0;
+        tx.pump = setInterval(() => {
+          if (!tx.running || (st.c3.fill || 0) >= TX_FILL) return;
+          if (pos >= audio.length) { stopTx(); return; }
+          sendPairs(tx.chain.process(audio.subarray(pos, pos + 1250))); pos += 1250;
+        }, 10);
+      }
+    }
+    tx.status = setInterval(() => {
+      $("txinfo").textContent = `${src}, ${(tx.sent / fs).toFixed(1)} s sent, C3 ring ${st.c3?.fill ?? "-"} pairs, underruns ${st.c3?.under ?? "-"}`;
+      $("txmeter").style.width = `${Math.min(100, tx.peak * 100)}%`;
+    }, 200);
+    log(`TX on: ${ok.slice(0, 90)}`, "ok");
+  } catch (e) {
+    log("TX: " + e.message, "err");
+    stopTx();
+  }
+}
+
+function stopTx() {
+  const tx = st.tx;
+  if (!tx) return;
+  tx.running = false;
+  clearInterval(tx.pump); clearInterval(tx.status);
+  tx.stream?.getTracks().forEach((t) => t.stop());
+  tx.ctx?.close().catch(() => {});
+  st.tx = null;
+  $("txbtn").textContent = "TX on"; $("txbtn").classList.remove("on"); $("ptt").classList.remove("on");
+  $("txmeter").style.width = "0%";
+  log("TX off (the C3 stops 0.5 s after the last data)");
+}
+
+$("txbtn").onclick = () => (st.tx ? stopTx() : startTx());
+$("ptt").addEventListener("pointerdown", (e) => { e.preventDefault(); startTx(); });
+for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("ptt").addEventListener(ev, () => { if (st.tx) stopTx(); });
 
 bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on http://localhost.", "err"); });
 

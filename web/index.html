@@ -100,6 +100,17 @@
     <button id="dccal" disabled title="The C3 sends its LO leakage alone (BDC TEST); the S3 measures it through crosstalk and the DC correction is searched for its minimum. Valid until the C3 resets. Shown with the S3's ceramic antenna next to the C3 only.">Calibrate DC (S3)</button>
     <span class="stat" title="Measured 2026-11-10 with the tinySA (±2 dB): linear to AMP 100, P1dB near AMP 150, at most about +12.5 dBm">dBm at the C3's connector, measured</span>
   </div>
+  <div class="row">
+    <b>TX</b>
+    <label>source <select id="txsrc"><option value="mic">microphone</option><option value="tone">tone</option><option value="two">two tones</option><option value="file">WAV / audio file</option></select></label>
+    <label id="txtl">tone <input type="number" id="txt1" class="w5" value="1000"> <input type="number" id="txt2" class="w5" value="1900"> Hz</label>
+    <label id="txfl"><input type="file" id="txfile" accept="audio/*"></label>
+    <label id="txgl">mic gain <input type="number" id="txgain" class="w5" value="0"> dB</label>
+    <button id="ptt" disabled title="Transmit while held (C3: USB at F, AMP; into a dummy load or an attenuator only)">PTT (hold)</button>
+    <button id="txbtn" disabled>TX on</button>
+    <label>out <div class="meter"><div id="txmeter"></div></div></label>
+    <span class="stat" id="txinfo"></span>
+  </div>
   <div id="log"></div>
 </main>
 <script type="module" src="app.js"></script>

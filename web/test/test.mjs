@@ -2,7 +2,7 @@
 //   node web/test/test.mjs [recording.cf32]     (default build/rx/iqs_cw.cf32: the C3 CW beacon recorded by tools/iqs_record.py)
 import { readFileSync } from "node:fs";
 import { IqsParser, crc32, tuning, pllActual } from "../iqs.js";
-import { Spectrum, CwDemod, Demod, Fft } from "../dsp.js";
+import { Spectrum, CwDemod, Demod, Fft, TxChain, TestTones } from "../dsp.js";
 
 let fails = 0;
 function check(ok, what) { console.log(`${ok ? "PASS" : "FAIL"} ${what}`); if (!ok) fails++; }
@@ -123,6 +123,28 @@ check(e3 < 0.05 * demod2.level, `2 kHz off: level ${(e3 / demod2.level).toExpone
   check(rej > 40, `USB: lower sideband rejected by ${rej.toFixed(1)} dB`);
   const edge = run(tone(dial + 150, 1000)), mid = run(tone(dial + 1500, 1000));
   check(20 * Math.log10(mid.d.level / edge.d.level) > 6, `USB: 150 Hz (below the 300 Hz edge) ${(20 * Math.log10(mid.d.level / edge.d.level)).toFixed(1)} dB down`);
+}
+
+// TX chain: a real 1 kHz tone at 50 kHz becomes an analytic USB signal: +1 kHz, nothing at -1 kHz, 150 Hz (below 300) gone
+{
+  const fs = 50000, n = fs * 2;
+  const spectrumOf = (iq) => {
+    const na = 1 << 15, start = iq.length / 2 - na, re = new Float64Array(na), im = new Float64Array(na), f = new Fft(na);
+    for (let k = 0; k < na; k++) { const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * k / (na - 1)); re[k] = iq[2 * (start + k)] * w; im[k] = iq[2 * (start + k) + 1] * w; }
+    f.run(re, im);
+    return (hz) => { const b = Math.round(hz / fs * na); const i = (b + na) % na; let m = 0; for (let d = -2; d <= 2; d++) { const j = (i + d + na) % na; m = Math.max(m, Math.hypot(re[j], im[j])); } return 20 * Math.log10(m + 1e-12); };
+  };
+  const run = (f0, a) => { const x = new Float32Array(n); for (let k = 0; k < n; k++) x[k] = a * Math.sin(2 * Math.PI * f0 * k / fs); const t = new TxChain(fs); const parts = []; for (let i = 0; i < n; i += 4000) parts.push(t.process(x.subarray(i, i + 4000))); const out = new Float32Array(parts.reduce((s2, p) => s2 + p.length, 0)); let o2 = 0; for (const p of parts) { out.set(p, o2); o2 += p.length; } return out; };
+  const y = run(1000, 0.3), S = spectrumOf(y);
+  check(S(1000) - S(-1000) > 50, `TX: USB tone +1 kHz, -1 kHz ${(S(-1000) - S(1000)).toFixed(1)} dB`);
+  let pk = 0; for (let k = 0; k < y.length; k += 2) pk = Math.max(pk, Math.hypot(y[k], y[k + 1]));
+  check(pk > 0.85 && pk <= 0.95, `TX: AGC brings a -10 dB tone to a peak of ${pk.toFixed(2)}`);
+  const lowTone = spectrumOf(run(150, 0.3)), mid = spectrumOf(run(1500, 0.3));
+  check(mid(1500) - lowTone(150) > 30, `TX: 150 Hz ${(lowTone(150) - mid(1500)).toFixed(1)} dB against 1.5 kHz`);
+  check(S(1000) - Math.max(S(1000 + 10000), S(1000 - 10000), S(11000)) > 50, `TX: images of the 10 kHz stage ${(Math.max(S(11000), S(-9000)) - S(1000)).toFixed(1)} dB`);
+  const tt = new TestTones(fs, [700, 1900]).next(fs);
+  let mx = 0; for (let k = 0; k < tt.length; k += 2) mx = Math.max(mx, Math.hypot(tt[k], tt[k + 1]));
+  check(Math.abs(mx - 0.9) < 0.01, `two tones: peak envelope ${mx.toFixed(3)}`);
 }
 
 console.log(fails ? `${fails} FAILED` : "all passed");
