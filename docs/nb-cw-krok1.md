@@ -165,6 +165,13 @@ C3 přes 30 dB do tinySA, LO 2320,0296 MHz (NCO +20 kHz):
 - S nosnou je optimum mírně jinde (Q +1 kód) – kalibrovat v režimu, ve kterém se vysílá.
 - Náprava: kalibrace na začátku sezení (tinySA, ~2 min), lépe automaticky přes S3 (společné TCXO, koherentní – únik je
   20 kHz od nosné a S3 ho měří rychle; viz `rx/cal_dc.py` v ESP32-ATV). Pro CW příjem únik 20 kHz vedle nevadí.
+- **Ohřev provozem minimum neposouvá:** 5 cyklů 3 min maják AMP 100 / 3 min pauza (30 min) při pevné korekci −2,25 / +5,6:
+  únik −31…−42 dBm bez trendu (průměry cyklů −35…−38,5 dBm); po 30 min s nosnou −42 dBc jako ráno, případný posun
+  < 0,5 kódu (rozptyl měření ±3 dB). Nosná během 3 min vysílání klesá z +2,8 na +1,3 dBm (tepelně), v pauze se vrátí.
+- **Posun dělá reset čipu:** po resetu C3 (esptool, napájení zůstalo) dala uložená hodnota −1,5 / +5,6 jen −21 dBc,
+  nové minimum **I −1,5 / Q −1,9** (−41 dBc) – posun 7,5 kódu. Restart vysílače bez resetu čipu minimum neposouvá →
+  PHY se při startu čipu kalibruje pokaždé trochu jinak. **Korekce uložená v NVS po resetu neplatí;** kalibrovat po
+  každém startu (automaticky přes S3, nebo tinySA na začátku sezení).
 - Skripty pokusů: `build/meas/lo_leak*.py` (mimo git).
 
 ### Klíčování (S3, koherentní záznam)
