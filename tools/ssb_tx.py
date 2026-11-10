@@ -5,7 +5,7 @@
     tools/ssb_tx.py --two-tone 700 1900 --seconds 20 --amp 100
     tools/ssb_tx.py --wav speech.wav --freq 2320.05e6 --amp 60
 
-The PC makes the analytic signal (USB: the spectrum above the carrier) at 62.5 kS/s, the C3 interpolates it, applies AMP and
+The PC makes the analytic signal (USB: the spectrum above the carrier) at the C3's rate (50 kS/s, from its OK line), the C3 interpolates it, applies AMP and
 puts it on the CW beacon's frequency F (LO = F - NCO; the carrier, suppressed, is at F). A tone of f Hz comes out at F + f.
 Two tones: each at 0.45 of full scale (peak envelope 0.9). A WAV file is resampled, filtered to 300-2700 Hz (smooth edges in
 the frequency domain), made analytic by zeroing the negative frequencies and normalised to a peak of 0.9.
@@ -24,7 +24,7 @@ import serial
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nbports import TX_PORT, tty_release  # noqa: E402
 
-RATE = 62500                                                  # pairs per second (SSB_IN_RATE of the firmware)
+RATE = 50000                                                  # pairs per second; the firmware's OK line says (RATE n)
 
 
 def tones(freqs, seconds, level):
@@ -63,17 +63,6 @@ def main():
     ap.add_argument("--port", default=TX_PORT)
     a = ap.parse_args()
 
-    if a.tone is not None:
-        z = tones([a.tone], a.seconds, 0.9)
-    elif a.two_tone:
-        z = tones(a.two_tone, a.seconds, 0.45)
-    else:
-        z = wav_analytic(a.wav)
-    iq = np.empty(2 * len(z), np.int16)
-    iq[0::2] = np.round(z.real * 32767)
-    iq[1::2] = np.round(z.imag * 32767)
-    data = iq.astype("<i2").tobytes()
-
     c3 = serial.Serial(a.port, 115200, timeout=0.2, write_timeout=3)
 
     def cmd(c, wait=0.8):
@@ -94,6 +83,19 @@ def main():
         print(line.decode(errors="replace").strip())
         if b"OK SSB" not in line:
             sys.exit("the C3 did not start SSB")
+        global RATE
+        m = __import__("re").search(rb"RATE (\d+)", line)
+        RATE = int(m.group(1)) if m else RATE
+        if a.tone is not None:
+            z = tones([a.tone], a.seconds, 0.9)
+        elif a.two_tone:
+            z = tones(a.two_tone, a.seconds, 0.45)
+        else:
+            z = wav_analytic(a.wav)
+        iq = np.empty(2 * len(z), np.int16)
+        iq[0::2] = np.round(z.real * 32767)
+        iq[1::2] = np.round(z.imag * 32767)
+        data = iq.astype("<i2").tobytes()
         sent, chunk, t0, last = 0, 4096, time.time(), 0.0
         fills, unders, buf = [], 0, b""
         while sent < len(data):
