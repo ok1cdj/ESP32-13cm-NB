@@ -41,6 +41,14 @@ class TinySA:
         self.s.write(b"\r")                          # the first line after opening can lose characters
         self.s.read_until(self.PROMPT)
         self.s.reset_input_buffer()
+        for i in range(3):                             # after plugging in, the shell answers only from a real command on
+            try:
+                self.cmd("version", timeout=2)
+                break
+            except TimeoutError:
+                if i == 2:
+                    raise
+                self.s.reset_input_buffer()
 
     def cmd(self, c, timeout=10):
         self.s.timeout = timeout
@@ -60,9 +68,9 @@ class TinySA:
         return np.array([float(x) for x in self.cmd("frequencies").split()])
 
     def trace(self):
-        """dBm of one fresh sweep."""
+        """dBm of one fresh sweep. The firmware prints a mantissa that rounds up to 10 as ':' ("-:.000000e+01" is -100 dBm)."""
         self.cmd("waitscan 1", timeout=300)
-        return np.array([float(x) for x in self.cmd("data 2").split()])
+        return np.array([float(x.replace(":", "10")) for x in self.cmd("data 2").split()])
 
     def close(self):
         try:

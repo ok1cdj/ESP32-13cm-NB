@@ -121,6 +121,32 @@ vzniká další DC složka (nelinearita), kalibrovat by se mělo s běžící no
 
 ![Spektrum](img/nb-cw-krok1-spektrum.png)
 
+### Výkon C3 podle AMP (10. 11. 2026)
+
+Samotná nosná (prázdný text, `CARRIER 600`), tinySA ±50 kHz, RBW 1 kHz, útlum 30 dB přičten (přesnost tinySA ±2 dB):
+
+| AMP | nosná | proti 20·log(AMP) | únik LO (−20 kHz) | zrcadlo (−40 kHz) |
+|---|---|---|---|---|
+| 1 | −35,5 dBm | 0 | +14 dBc | −13,5 dBc |
+| 3 | −27,0 dBm | 0 | +4,5 dBc | −29 dBc |
+| 10 | −17,0 dBm | 0 | −7,5 dBc | −37,5 dBc |
+| 30 | −7,5 dBm | 0 | −16,5 dBc | −43,5 dBc |
+| 100 | +2,5 dBm | −0,5 dB | −26 dBc | −46,5 dBc |
+| 150 | +5,5 dBm | −1 dB | −29,5 dBc | −50,5 dBc |
+| 200 | +7,5 dBm | −1,5 dB | −33,5 dBc | −51,5 dBc |
+| 300 | +10,5 dBm | −2 dB | −35,5 dBc | −55,5 dBc |
+| 400 | +12,5 dBm | −2,5 dB | −37,5 dBc | −52 dBc |
+| 480 | +12,5 dBm | −4 dB | −37,5 dBc | −52 dBc |
+
+- Nosná ≈ −37 dBm + 20·log(AMP) do AMP 100; P1dB kolem AMP 150 (+5,5 dBm), maximum ~+12,5 dBm (AMP 400 a 480
+  daly totožné hodnoty – neověřeno, zda se 480 uplatnilo).
+- **Únik LO byl dnes konstantně −22…−25 dBm** (nezávisle na AMP), včera po kalibraci −40…−45 dBm (samotný) a −34,5 dBm
+  v CW – korekce z tabulky NVS (`2320030 −3,52 1,00`) se použila, ale nesedí: únik se mění mezi starty / s teplotou.
+  Při AMP < 5 je únik silnější než nosná → slabý zkušební signál raději AMP ≥ 10 a útlum.
+- Data: `build/meas/c3_power_vs_amp.csv`, skript `build/meas/c3_power.py`.
+
+![Výkon podle AMP](img/nb-cw-krok1-vykon.png)
+
 ### Klíčování (S3, koherentní záznam)
 
 | | rampa 5 ms | rampa 1 ms |
