@@ -12,7 +12,7 @@ let bridge = null;
 // ?webserial: Web Serial even when the bridge serves the page
 const bridgeReady = (new URLSearchParams(location.search).has("webserial") ? Promise.resolve(null)
   : fetch("bridge.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null))
-  .then((b) => { bridge = b; if (b) log(`bridge: S3 ${b.ports.s3}, C3 ${b.ports.c3}`, "ok"); return b; });
+  .then((b) => { bridge = b; if (b) log(`bridge: S3 ${b.ports.s3 ?? "missing"}, C3 ${b.ports.c3 ?? "missing"}`, "ok"); return b; });
 
 async function pickPort(which) {
   await bridgeReady;
@@ -267,8 +267,8 @@ function drawSpectrum(db) {
     ctx.beginPath(); ctx.moveTo(0, y(d)); ctx.lineTo(W, y(d)); ctx.stroke();
     ctx.fillText(`${d} dBFS`, 4, y(d) - 2);
   }
-  // frequency grid: a round step for at most 10 lines, one per 90 CSS px (a phone); the labels go on the axis strip
-  const lines = Math.max(3, Math.min(10, Math.floor(W / devicePixelRatio / 90)));
+  // frequency grid: a round step for at most 10 lines, one per 70 CSS px (a phone); the labels go on the axis strip
+  const lines = Math.max(3, Math.min(10, Math.floor(W / devicePixelRatio / 70)));
   const step = [10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5].find((s) => v.span / s <= lines);
   const ticks = [];
   for (let f = Math.ceil((st.centerHz + v.lo) / step) * step; f < st.centerHz + v.lo + v.span; f += step) {
