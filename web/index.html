@@ -15,26 +15,37 @@
   header { padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; border-bottom: 1px solid var(--line); }
   header h1 { font-size: 17px; margin: 0; }
   header .freq { font: 600 22px/1 ui-monospace, monospace; color: var(--acc); }
-  main { padding: 8px 16px; display: grid; gap: 6px; }
+  main { padding: 8px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; background: var(--panel); padding: 8px 10px; border-radius: 6px; }
   .row b { min-width: 28px; }
   label { color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
   input, select, button { background: #2a2e33; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
   input[type=number] { width: 8em; }
   input.w5 { width: 5em; }
+  select { max-width: 100%; }
   button { cursor: pointer; }
   button.on { border-color: var(--acc); color: var(--acc); }
   button:disabled { opacity: .45; cursor: default; }
-  .stat { font: 12px ui-monospace, monospace; color: var(--dim); }
+  .stat { font: 12px ui-monospace, monospace; color: var(--dim); overflow-wrap: anywhere; }
   .ok { color: var(--ok); } .err { color: var(--err); }
   canvas { width: 100%; display: block; background: #000; }
   #spec { height: 220px; border-radius: 4px 4px 0 0; cursor: crosshair; }
   #axis { height: 26px; background: #101214; }
   #wf { height: 320px; border-radius: 0 0 4px 4px; cursor: crosshair; }
   .plot { display: grid; gap: 0; }
-  #log { font: 12px ui-monospace, monospace; color: var(--dim); max-height: 7.5em; overflow: auto; white-space: pre-wrap; background: var(--panel); padding: 6px 10px; border-radius: 6px; }
+  #log { font: 12px ui-monospace, monospace; color: var(--dim); max-height: 7.5em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--panel); padding: 6px 10px; border-radius: 6px; }
   .meter { width: 160px; height: 10px; background: #2a2e33; border-radius: 5px; overflow: hidden; }
   .meter div { height: 100%; width: 0; background: var(--ok); }
+  /* a phone: narrower margins and inputs, lower plots; every row still wraps */
+  @media (max-width: 600px) {
+    header, main { padding: 6px 8px; }
+    .row { gap: 6px 10px; padding: 6px 8px; }
+    input[type=number] { width: 7em; }
+    input[type=file] { max-width: 100%; }
+    .meter { width: 100px; }
+    #spec { height: 180px; }
+    #wf { height: 240px; }
+  }
 </style>
 </head>
 <body>

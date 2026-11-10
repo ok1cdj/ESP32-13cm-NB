@@ -267,8 +267,9 @@ function drawSpectrum(db) {
     ctx.beginPath(); ctx.moveTo(0, y(d)); ctx.lineTo(W, y(d)); ctx.stroke();
     ctx.fillText(`${d} dBFS`, 4, y(d) - 2);
   }
-  // frequency grid: a round step for about 8 lines; the labels go on the axis strip
-  const step = [10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4].find((s) => v.span / s <= 10);
+  // frequency grid: a round step for at most 10 lines, one per 90 CSS px (a phone); the labels go on the axis strip
+  const lines = Math.max(3, Math.min(10, Math.floor(W / devicePixelRatio / 90)));
+  const step = [10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5].find((s) => v.span / s <= lines);
   const ticks = [];
   for (let f = Math.ceil((st.centerHz + v.lo) / step) * step; f < st.centerHz + v.lo + v.span; f += step) {
     const x = (f - st.centerHz - v.lo) / v.span * W;
