@@ -393,7 +393,11 @@ async function connectC3(port) {
           p = n + 1;
           if (!raw.every((b) => (b >= 0x20 && b < 0x7f) || b === 0x0d)) continue;
           const l = new TextDecoder().decode(raw).replace(/\r$/, "");
-          if (l) { log("C3: " + l); c3.lines.push(l); if (l.startsWith("CW ON")) $("c3info").textContent = l; }
+          if (l) {
+            log("C3: " + l); c3.lines.push(l);
+            if (l.startsWith("CW ON")) $("c3info").textContent = l;
+            if (l.startsWith("SSB END") || l.startsWith("ERR SSB")) c3.ssbBusy = false;
+          }
         }
         buf = buf.slice(p);
       }
@@ -616,40 +620,51 @@ $("txsrc").onchange = showTxUi;
 showTxUi();
 $("txgain").onchange = () => st.tx?.chain?.setGainDb(Number($("txgain").value));
 
-function sendPairs(iq) {                                     // Float32 interleaved I, Q in -1..1 -> int16 LE to the C3
+function sendPairs(tx, iq) {                                 // Float32 interleaved I, Q in -1..1 -> int16 LE to the C3
+  if (!tx.running || !st.c3) return;
   const v = new Int16Array(iq.length);
   let pk = 0;
   for (let k = 0; k < iq.length; k++) v[k] = Math.round(Math.max(-1, Math.min(1, iq[k])) * 32767);
   for (let k = 0; k < iq.length; k += 2) pk = Math.max(pk, Math.hypot(iq[k], iq[k + 1]));
-  st.tx.peak = Math.max(pk, st.tx.peak * 0.9);
-  st.tx.sent += iq.length / 2;
-  st.tx.writes = st.tx.writes.then(() => st.c3.writer.write(new Uint8Array(v.buffer))).catch((e) => log("TX write: " + e.message, "err"));
+  tx.peak = Math.max(pk, tx.peak * 0.9);
+  tx.sent += iq.length / 2;
+  const c3 = st.c3;
+  tx.writes = tx.writes.then(() => c3.writer.write(new Uint8Array(v.buffer))).catch((e) => log("TX write: " + e.message, "err"));
 }
 
 async function startTx() {
   if (st.tx || !st.c3) return;
   const src = $("txsrc").value;
   const tx = st.tx = { src, running: true, sent: 0, peak: 0, writes: Promise.resolve(), t0: performance.now() };
+  const released = () => !tx.running || st.tx !== tx;
   try {
     $("txbtn").textContent = "TX off"; $("txbtn").classList.add("on"); $("ptt").classList.add("on");
+    // the previous run first has to end (0.5 s after its last data): in SSB mode the C3 takes every byte as audio
+    for (let i = 0; i < 40 && st.c3.ssbBusy; i++) await new Promise((r) => setTimeout(r, 100));
+    if (st.c3.ssbBusy) throw new Error("the C3 is still in its last SSB run");
+    if (released()) return;
     await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`); await new Promise((r) => setTimeout(r, 250));
     await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`); await new Promise((r) => setTimeout(r, 250));
+    if (released()) return;
     st.c3.lines.length = 0; st.c3.fill = 0; st.c3.under = 0;
+    st.c3.ssbBusy = true;
     await c3send("SSB ON");
     let ok = null;
     for (let i = 0; i < 30 && !ok; i++) { await new Promise((r) => setTimeout(r, 100)); ok = st.c3.lines.find((l) => /^(OK SSB|ERR)/.test(l)); }
     if (!ok || ok.startsWith("ERR")) throw new Error(ok || "no OK SSB from the C3");
     const fs = Number((/RATE (\d+)/.exec(ok) || [0, 50000])[1]);
-    sendPairs(new Float32Array(2 * 2000));                   // 40 ms of silence first: no underrun at the start
+    if (released()) { tx.running = true; sendPairs(tx, new Float32Array(2 * 500)); tx.running = false; return; }   // a short tap: 10 ms, then off
+    sendPairs(tx, new Float32Array(2 * 2000));                   // 40 ms of silence first: no underrun at the start
     if (src === "tone" || src === "two") {
       const tones = new TestTones(fs, src === "tone" ? [Number($("txt1").value)] : [Number($("txt1").value), Number($("txt2").value)]);
-      tx.pump = setInterval(() => { if (tx.running && (st.c3.fill || 0) < TX_FILL) sendPairs(tones.next(1250)); }, 10);
+      tx.pump = setInterval(() => { if (tx.running && (st.c3.fill || 0) < TX_FILL) sendPairs(tx, tones.next(1250)); }, 10);
     } else {
       tx.chain = new TxChain(fs, { gainDb: Number($("txgain").value) });
       tx.ctx = new AudioContext({ sampleRate: fs });
       if (src === "mic") {
         tx.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         await tx.ctx.audioWorklet.addModule("audio-tx-worklet.js");
+        if (released()) { tx.stream.getTracks().forEach((t) => t.stop()); tx.ctx.close().catch(() => {}); return; }
         tx.node = new AudioWorkletNode(tx.ctx, "tx-capture", { numberOfOutputs: 0 });
         tx.ctx.createMediaStreamSource(tx.stream).connect(tx.node);
         let acc = [], n = 0;
@@ -660,21 +675,23 @@ async function startTx() {
           const a = new Float32Array(n); let o = 0; for (const c of acc) { a.set(c, o); o += c.length; } acc = []; n = 0;
           const iq = tx.chain.process(a), fill = st.c3.fill || 0;
           if (fill > 7000) return;                            // the ring is full: drop, so that the latency stays low
-          if (fill < 1000) sendPairs(new Float32Array(2 * 500));
-          sendPairs(iq);
+          if (fill < 1000) sendPairs(tx, new Float32Array(2 * 500));
+          sendPairs(tx, iq);
         };
       } else {
         const f = $("txfile").files[0];
         if (!f) throw new Error("choose an audio file first");
         const audio = (await tx.ctx.decodeAudioData(await f.arrayBuffer())).getChannelData(0);
+        if (released()) { tx.ctx.close().catch(() => {}); return; }
         let pos = 0;
         tx.pump = setInterval(() => {
           if (!tx.running || (st.c3.fill || 0) >= TX_FILL) return;
           if (pos >= audio.length) { stopTx(); return; }
-          sendPairs(tx.chain.process(audio.subarray(pos, pos + 1250))); pos += 1250;
+          sendPairs(tx, tx.chain.process(audio.subarray(pos, pos + 1250))); pos += 1250;
         }, 10);
       }
     }
+    if (released()) { clearInterval(tx.pump); return; }
     tx.status = setInterval(() => {
       $("txinfo").textContent = `${src}, ${(tx.sent / fs).toFixed(1)} s sent, C3 ring ${st.c3?.fill ?? "-"} pairs, underruns ${st.c3?.under ?? "-"}`;
       $("txmeter").style.width = `${Math.min(100, tx.peak * 100)}%`;
@@ -682,13 +699,15 @@ async function startTx() {
     log(`TX on: ${ok.slice(0, 90)}`, "ok");
   } catch (e) {
     log("TX: " + e.message, "err");
-    stopTx();
+    if (/no OK SSB/.test(e.message) && st.c3) st.c3.ssbBusy = false;      // nothing started: do not wait for an SSB END
+    if (st.tx === tx) stopTx();
   }
 }
 
 function stopTx() {
   const tx = st.tx;
   if (!tx) return;
+  // the C3 ends 0.5 s after the last data (3 s when none came): ssbBusy until its SSB END
   tx.running = false;
   clearInterval(tx.pump); clearInterval(tx.status);
   tx.stream?.getTracks().forEach((t) => t.stop());
