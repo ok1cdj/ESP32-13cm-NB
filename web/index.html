@@ -1,12 +1,13 @@
 <!doctype html>
-<!-- NB 13 cm receiver: ESP32-S3 (ESP-SDR IQS firmware) with spectrum, waterfall and CW audio; C3 CW beacon control.
+<!-- NB 13 cm transceiver: receive on the ESP32-S3 (ESP-SDR IQS firmware: spectrum, waterfall, CW / USB audio), transmit on the
+     ESP32-C3 (CW beacon, USB from the microphone, a file or test tones).
      tools/web_bridge.py serves it and passes the boards over WebSocket (any browser): http://localhost:8080
      ?webserial or tools/web_serve.py: Web Serial (Chrome / Edge on http://localhost). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NB 13 cm receiver</title>
+<title>NB 13 cm transceiver</title>
 <style>
   :root { --bg: #15171a; --panel: #1f2226; --text: #d8dadd; --dim: #8a9097; --acc: #ff9f0a; --line: #33373c; --ok: #4cd964; --err: #ff453a; }
   * { box-sizing: border-box; }
@@ -38,7 +39,7 @@
 </head>
 <body>
 <header>
-  <h1>NB 13 cm receiver</h1>
+  <h1>NB 13 cm TRX</h1>
   <span>listening <span class="freq" id="lfreq">—</span> MHz</span>
   <span class="stat" id="stats"></span>
 </header>

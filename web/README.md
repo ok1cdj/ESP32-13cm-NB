@@ -1,7 +1,7 @@
-# NB 13 cm receiver – web page
+# NB 13 cm transceiver – web page
 
-ESP32-S3 with the ESP-SDR firmware (IQS stream): spectrum, frequency axis, waterfall, CW demodulation with audio; control of
-the CW beacon on the C3 (ESP32-DATV-SA, branch `cw-beacon`). Works offline: everything is served from this computer.
+Receive on the ESP32-S3 with the ESP-SDR firmware (IQS stream): spectrum, frequency axis, waterfall, CW / USB audio. Transmit
+on the ESP32-C3: USB from the microphone, a file or test tones, and its CW beacon (ESP32-DATV-SA, branch `cw-beacon`). Works offline: everything is served from this computer.
 
 ```sh
 tools/nb_rx.sh                       # bridge + browser on http://localhost:8080 (Ctrl-C ends the bridge)
