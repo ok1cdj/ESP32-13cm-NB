@@ -25,6 +25,8 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
 - **Presets**: the C3 test beacon and the Czech 13 cm beacons from the ČRK list (OK0EA 2320.804 JO70UP, …; check the list),
   and the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s. A preset restarts a running stream on its centre.
 - **Start**: the S3's LO 4 MHz below the centre (mode 2), the PLL's rounding computed → exact frequencies on the shared TCXO.
+  A new centre, rate or gain on a running stream restarts it (bench: 23–39 ms). The firmware's in-stream retune
+  (`T <MHz> <kHz>`) is not used: a kHz-only retune left the LO where it was although `IQSEND` counted it.
 - **Tuning**: click the spectrum or the waterfall (snaps to the strongest bin within ±5 px), wheel over the waterfall 10 Hz
   (Shift 100 Hz), or the listen field. Zoom around the listen frequency; the axis between spectrum and waterfall in MHz.
 - **CW**: shift to 0 Hz, decimation to 7812.5 Hz, complex filter (width), BFO pitch, AGC; audio through an AudioWorklet.

@@ -86,10 +86,13 @@ async function applyGain() {
 $("gainmode").onchange = applyGain;
 $("gain").onchange = applyGain;
 
-// A new centre: a running stream at the same rate is retuned in-stream (about 9 ms gap); else Start applies it.
+// A new centre on a running stream. The in-stream retune of the firmware ("T <MHz> <kHz>", ~9 ms gap) is not used: on the
+// bench (ESP-SDR 4128c24, 2026-11-10) it reported a retune (IQSEND) but a line stayed at the same IF after a kHz-only change,
+// so the LO had not moved and the page's frequencies were wrong. The stream is restarted instead (well under a second).
+const RETUNE_IN_STREAM = false;
 async function applyCenter() {
   if (!st.s3?.streaming || st.calRunning) return;
-  if ($("rate").value !== st.rateKey) { await $("start").onclick(); return; }
+  if (!RETUNE_IN_STREAM || $("rate").value !== st.rateKey) { await $("start").onclick(); return; }
   try {
     st.centerHz = await st.s3.retune(Number($("center").value) * 1e6);
     setListen(st.listenHz);
@@ -319,7 +322,7 @@ $("preset").onchange = async () => {
   if (opt) $("rate").value = opt.value;
   if (Number(decim) <= 64) $("zoom").value = "1";
   setListen(Number(listen) * 1e6);
-  await applyCenter();                                    // retune in the stream, or restart it for a new rate
+  await applyCenter();                                    // restart the stream on the new centre
 };
 
 /* ------------------------------------------------------------ C3 */
@@ -391,8 +394,13 @@ async function probe(port) {
     try { for (;;) { const { value, done } = await r.read(); if (done) break; text += new TextDecoder("latin1").decode(value); } } catch (e) { /* closed */ }
   })();
   try {
-    await w.write(new TextEncoder().encode("\nCAPS\n"));     // the empty line stops a stream left running on an S3
-    for (let i = 0; i < 20 && !/CAPS |commands: INFO/.test(text); i++) await new Promise((res) => setTimeout(res, 100));
+    // an empty line first: it stops a stream left running on an S3, which drops the rest of what arrives meanwhile
+    await w.write(new TextEncoder().encode("\n"));
+    await new Promise((res) => setTimeout(res, 400));
+    for (let attempt = 0; attempt < 2 && !/CAPS |commands: INFO/.test(text); attempt++) {
+      await w.write(new TextEncoder().encode("CAPS\n"));
+      for (let i = 0; i < 12 && !/CAPS |commands: INFO/.test(text); i++) await new Promise((res) => setTimeout(res, 100));
+    }
   } finally {
     await r.cancel().catch(() => {});
     await reading;

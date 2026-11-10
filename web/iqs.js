@@ -215,7 +215,8 @@ export class S3Radio {
   }
 
   /** Retune a running stream ("T <MHz> <kHz>": PLL only, ~9 ms gap, the sample numbering goes on, the gap is flagged).
-   *  Returns the new centre (PLL rounding included). */
+   *  Returns the new centre (PLL rounding included). Bench 2026-11-10 (ESP-SDR 4128c24): a kHz-only retune did not move
+   *  the LO although IQSEND counted it; app.js restarts the stream instead (RETUNE_IN_STREAM). */
   async retune(centerHz) {
     if (!this.streaming) throw new Error("no stream to retune");
     const t = tuning(centerHz);
