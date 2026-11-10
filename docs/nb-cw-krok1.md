@@ -172,7 +172,12 @@ C3 přes 30 dB do tinySA, LO 2320,0296 MHz (NCO +20 kHz):
   nové minimum **I −1,5 / Q −1,9** (−41 dBc) – posun 7,5 kódu. Restart vysílače bez resetu čipu minimum neposouvá →
   PHY se při startu čipu kalibruje pokaždé trochu jinak. **Korekce uložená v NVS po resetu neplatí;** kalibrovat po
   každém startu (automaticky přes S3, nebo tinySA na začátku sezení).
-- Skripty pokusů: `build/meas/lo_leak*.py` (mimo git).
+- **Kalibrace přeslechem přes S3 funguje** (S3 s keramickou anténou vedle C3, C3 přes 30 dB do tinySA, `BDC TEST`):
+  S3 (IQS 62,5 kS/s, ruční zisk 50) sleduje únik z konektoru monotónně – minimum 114 dB, +24 kódů 137 dB; záření desky při
+  vypnutém vysílání 89 dB (25 dB pod minimem). Hledání **jen podle S3** (25 bodů, ~1 min) našlo I −1,5 / Q 0,0 a tinySA
+  tam ukázala −39,7 dBm (hledání podle tinySA v CW dalo −1,5 / −1,9 a −35,2 dBm). V CW s nosnou je optimum ~1 kód jinde.
+  **Ověřeno jen s keramickou anténou S3** – po přestavbě S3 na konektor (a při jiném rozmístění desek) změřit znovu.
+- Skripty pokusů: `build/meas/lo_leak*.py`, `build/meas/xtalk_*.py` (mimo git).
 
 ### Klíčování (S3, koherentní záznam)
 
