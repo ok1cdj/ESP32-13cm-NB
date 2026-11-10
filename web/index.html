@@ -72,10 +72,11 @@
     <button id="stop" disabled>Stop</button>
   </div>
   <div class="row">
-    <b>CW</b>
+    <b>RX</b>
+    <label>mode <select id="mode"><option value="cw" selected>CW</option><option value="usb">USB</option></select></label>
     <label>listen <input type="number" id="listen" step="0.000001" value="2320.050000"> MHz</label>
-    <label>filter <select id="bw"><option>250</option><option selected>500</option><option>1000</option><option>2400</option></select> Hz</label>
-    <label>pitch <input type="number" id="pitch" class="w5" value="700"> Hz</label>
+    <label>filter <select id="bw"></select></label>
+    <label id="pitchl">pitch <input type="number" id="pitch" class="w5" value="700"> Hz</label>
     <button id="audio">Audio on</button>
     <label>volume <input type="range" id="vol" min="0" max="1" step="0.05" value="0.7"></label>
     <label>level <div class="meter"><div id="meter"></div></div> <span class="stat" id="level"></span></label>

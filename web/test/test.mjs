@@ -2,7 +2,7 @@
 //   node web/test/test.mjs [recording.cf32]     (default build/rx/iqs_cw.cf32: the C3 CW beacon recorded by tools/iqs_record.py)
 import { readFileSync } from "node:fs";
 import { IqsParser, crc32, tuning, pllActual } from "../iqs.js";
-import { Spectrum, CwDemod, Fft } from "../dsp.js";
+import { Spectrum, CwDemod, Demod, Fft } from "../dsp.js";
 
 let fails = 0;
 function check(ok, what) { console.log(`${ok ? "PASS" : "FAIL"} ${what}`); if (!ok) fails++; }
@@ -105,6 +105,25 @@ const demod3 = new CwDemod(fs, 500, 700); demod3.setOffset(195.3 + 2000);
 let e3 = 0, n3 = 0; demod3.gain = 1; demod3.process = demod3.process.bind(demod3);
 for (let i = 0; i + 4096 <= nSamp; i += 4096) for (const v of demod3.process(x.subarray(2 * i, 2 * i + 8192))) { e3 = Math.max(e3, demod3.level); n3++; }
 check(e3 < 0.05 * demod2.level, `2 kHz off: level ${(e3 / demod2.level).toExponential(1)} of the tuned one`);
+
+// USB: a tone 1 kHz above the dial frequency comes out at 1 kHz; one 1 kHz below (the lower sideband) is rejected
+{
+  const fs = 62500, dial = 5000, n = fs * 2;
+  const tone = (f, a) => { const x = new Float32Array(2 * n); for (let k = 0; k < n; k++) { x[2 * k] = a * Math.cos(2 * Math.PI * f * k / fs); x[2 * k + 1] = a * Math.sin(2 * Math.PI * f * k / fs); } return x; };
+  // level: the filter output's peak, reset after the first second so that the filters' start-up transient does not count
+  const run = (x) => { const d = new Demod(fs, { mode: "usb" }); d.setOffset(dial); d.warm = 0; const a = []; for (let i = 0; i < n; i += 4096) { if (i >= n / 2 && i < n / 2 + 4096) d.peak = 0; for (const v of d.process(x.subarray(2 * i, Math.min(2 * n, 2 * i + 8192)))) a.push(v); } return { a, d }; };
+  const up = run(tone(dial + 1000, 1000)), down = run(tone(dial - 1000, 1000));
+  const na = 4096, f = new Fft(na), re = new Float64Array(na), im = new Float64Array(na);
+  for (let k = 0; k < na; k++) re[k] = up.a[up.a.length - na + k];
+  f.run(re, im);
+  let ap = 1; for (let i = 1; i < na / 2; i++) if (re[i] ** 2 + im[i] ** 2 > re[ap] ** 2 + im[ap] ** 2) ap = i;
+  const audioHz = ap * up.d.audioRate / na;
+  check(Math.abs(audioHz - 1000) < 3, `USB: tone 1 kHz above the dial heard at ${audioHz.toFixed(1)} Hz`);
+  const rej = 20 * Math.log10(up.d.level / down.d.level);
+  check(rej > 40, `USB: lower sideband rejected by ${rej.toFixed(1)} dB`);
+  const edge = run(tone(dial + 150, 1000)), mid = run(tone(dial + 1500, 1000));
+  check(20 * Math.log10(mid.d.level / edge.d.level) > 6, `USB: 150 Hz (below the 300 Hz edge) ${(20 * Math.log10(mid.d.level / edge.d.level)).toFixed(1)} dB down`);
+}
 
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);

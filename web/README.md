@@ -29,7 +29,10 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
   (`T <MHz> <kHz>`) is not used: a kHz-only retune left the LO where it was although `IQSEND` counted it.
 - **Tuning**: click the spectrum or the waterfall (snaps to the strongest bin within ±5 px), wheel over the waterfall 10 Hz
   (Shift 100 Hz), or the listen field. Zoom around the listen frequency; the axis between spectrum and waterfall in MHz.
-- **CW**: shift to 0 Hz, decimation to 7812.5 Hz, complex filter (width), BFO pitch, AGC; audio through an AudioWorklet.
+- **RX mode CW / USB**: shift to 0 Hz, decimation to 7812.5 Hz, a complex band pass (the other sideband rejected, >100 dB in
+  the test), AGC; audio through an AudioWorklet. CW: ±width/2 around the listen frequency, heard at the pitch; the click
+  snaps to the strongest bin. USB: the listen frequency is the suppressed carrier, the filter passes 300–2400 / 300–2700 /
+  200–3000 Hz above it (shaded in the spectrum); no snapping.
 - **Calibrate DC (S3)**: the C3 sends its LO leakage alone (`BDC TEST`), the S3 measures it through crosstalk (single-bin
   DFT, manual gain 50) and a coordinate search sets the DC correction (`BDC i q`, about 25 s). Valid until the C3 resets (the
   PHY calibrates anew at every start). Bench 2026-11-10: the page found −1.5 / −1.5, the tinySA at the C3's connector gave

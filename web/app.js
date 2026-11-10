@@ -1,6 +1,6 @@
 // The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, through tools/web_bridge.py or Web Serial.
 import { S3Radio, WsPort, pllActual } from "./iqs.js";
-import { Spectrum, CwDemod } from "./dsp.js";
+import { Spectrum, Demod } from "./dsp.js";
 
 const $ = (id) => document.getElementById(id);
 const ESPRESSIF = { usbVendorId: 0x303a };
@@ -110,7 +110,7 @@ $("start").onclick = async () => {
     const r = await st.s3.start(Number($("center").value) * 1e6, decim, bits, gain);
     st.fs = r.fs; st.centerHz = r.centerHz; st.rateKey = $("rate").value; st.s3.retunes = 0;
     st.spec = new Spectrum(FFT_N, Math.max(1, Math.round(st.fs / FFT_N / 15)), bits === 16 ? 32768 : 128, drawSpectrum);
-    st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
+    st.demod = newDemod();
     setListen(st.listenHz);
     st.t0 = performance.now(); st.samples = 0;
     $("stop").disabled = false;
@@ -143,7 +143,28 @@ function setListen(hz) {
   if (st.demod) st.demod.setOffset(hz - st.centerHz);
 }
 $("listen").onchange = () => setListen(Number($("listen").value) * 1e6);
-$("bw").onchange = () => st.demod?.setBandwidth(Number($("bw").value));
+// Receive mode and filter. CW: +-width/2 around the listen frequency, heard at the pitch. USB: the listen frequency is the
+// suppressed carrier, the filter passes lo .. hi above it.
+const FILTERS = {
+  cw: [["250", "250 Hz"], ["500", "500 Hz"], ["1000", "1 kHz"]],
+  usb: [["300-2400", "2.1 kHz (300–2400)"], ["300-2700", "2.4 kHz (300–2700)"], ["200-3000", "2.8 kHz (200–3000)"]],
+};
+const FILTER_DEFAULT = { cw: "500", usb: "300-2700" };
+function demodOptions() {
+  const mode = $("mode").value, f = $("bw").value;
+  if (mode === "usb") { const [lo, hi] = f.split("-").map(Number); return { mode, lo, hi, pitch: Number($("pitch").value) }; }
+  return { mode, bw: Number(f), pitch: Number($("pitch").value) };
+}
+function newDemod() { return new Demod(st.fs, demodOptions()); }
+function fillFilters() {
+  const mode = $("mode").value;
+  $("bw").innerHTML = FILTERS[mode].map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+  $("bw").value = FILTER_DEFAULT[mode];
+  $("pitchl").style.display = mode === "cw" ? "" : "none";
+}
+fillFilters();
+$("mode").onchange = () => { fillFilters(); if (st.demod) { const o = demodOptions(); st.demod.setMode(o.mode, o); } };
+$("bw").onchange = () => { if (st.demod) { const o = demodOptions(); st.demod.setMode(o.mode, o); } };
 $("pitch").onchange = () => { if (st.demod) st.demod.pitch = Number($("pitch").value); };
 
 // the visible span: fs / zoom around the listen frequency (kept inside the band)
@@ -159,8 +180,8 @@ for (const id of ["spec", "wf"]) {
     if (!st.fs) return;
     const r = e.target.getBoundingClientRect(), v = view();
     let off = v.lo + (e.clientX - r.left) / r.width * v.span;
-    // snap to the strongest bin within +-5 px
-    if (st.lastSpec) {
+    // CW: snap to the strongest bin within +-5 px (USB: the click is the carrier, no snapping)
+    if (st.lastSpec && $("mode").value === "cw") {
       const bin = st.fs / FFT_N, px = v.span / r.width * 5;
       let best = -1e9, bf = off;
       for (let f = off - px; f <= off + px; f += bin) {
@@ -256,8 +277,9 @@ function drawSpectrum(db) {
   }
   drawAxis(ticks, step, W, v);
   // listen frequency and filter
-  const lx = (st.listenHz - st.centerHz - v.lo) / v.span * W, bwx = Number($("bw").value) / v.span * W;
-  ctx.fillStyle = "rgba(255,159,10,0.18)"; ctx.fillRect(lx - bwx / 2, 0, bwx, H);
+  const lx = (st.listenHz - st.centerHz - v.lo) / v.span * W;
+  const [pb0, pb1] = st.demod ? st.demod.passband() : [-250, 250];
+  ctx.fillStyle = "rgba(255,159,10,0.18)"; ctx.fillRect(lx + pb0 / v.span * W, 0, (pb1 - pb0) / v.span * W, H);
   ctx.strokeStyle = "#ff9f0a"; ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
   // trace
   ctx.strokeStyle = "#5ac8fa"; ctx.lineWidth = 1.5 * devicePixelRatio; ctx.beginPath();
@@ -274,9 +296,11 @@ function drawSpectrum(db) {
   }
   wctx.putImageData(row, 0, 0);
   // level of the listened signal, and statistics
-  const li = Math.round((st.listenHz - st.centerHz) / bin) + FFT_N / 2;
+  // the strongest bin of the passband (CW: within 2 bins of the listen frequency)
+  const [q0, q1] = $("mode").value === "usb" && st.demod ? st.demod.passband() : [-2 * bin, 2 * bin];
+  const i0 = Math.round((st.listenHz - st.centerHz + q0) / bin) + FFT_N / 2, i1 = Math.round((st.listenHz - st.centerHz + q1) / bin) + FFT_N / 2;
   let lv = -200;
-  for (let i = li - 2; i <= li + 2; i++) if (i >= 0 && i < FFT_N && db[i] > lv) lv = db[i];
+  for (let i = i0; i <= i1; i++) if (i >= 0 && i < FFT_N && db[i] > lv) lv = db[i];
   const snr = lv - med;
   $("level").textContent = `${lv.toFixed(1)} dBFS, ${snr.toFixed(0)} dB above noise (bin ${bin.toFixed(1)} Hz)`;
   $("meter").style.width = `${Math.max(0, Math.min(100, snr * 2))}%`;
@@ -526,7 +550,7 @@ $("dccal").onclick = async () => {
     const r = await st.s3.start(loKhz * 1e3, 256, 16, 50);
     st.fs = r.fs; st.centerHz = r.centerHz;
     st.spec = new Spectrum(FFT_N, Math.max(1, Math.round(st.fs / FFT_N / 15)), 32768, drawSpectrum);
-    st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
+    st.demod = newDemod();
     setListen(loHz);
     await c3send(`BDC TEST on ${(loKhz / 1e3).toFixed(3)}`);
     await new Promise((r) => setTimeout(r, 2500));
@@ -567,7 +591,7 @@ bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the b
 if (new URLSearchParams(location.search).has("demo")) {
   st.fs = 62500; st.centerHz = Number($("center").value) * 1e6;
   st.spec = new Spectrum(FFT_N, 1, 32768, drawSpectrum);
-  st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
+  st.demod = newDemod();
   setListen(st.centerHz + 1000);
   st.t0 = performance.now();
   let ph = 0, n = 0;

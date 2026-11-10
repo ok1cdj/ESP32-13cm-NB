@@ -120,32 +120,43 @@ class Decimator {
 }
 
 /**
- * CW receiver: the signal at `offset` Hz from the centre is mixed to 0 Hz, decimated to about 7.8 kHz (stage 1, 3 kHz low pass),
- * filtered to +-bw/2 (stage 2, complex, so the other sideband is rejected), shifted up by the BFO pitch and turned into real audio
- * with a slow AGC. audioRate = fs / round(fs / 7812.5) (exactly 7812.5 Hz for the IQS rates).
+ * CW / USB receiver. The dial frequency (offset Hz from the centre) is mixed to 0 Hz and decimated to about 7.8 kHz (stage 1,
+ * 3.3 kHz low pass, so the USB passband fits); stage 2 is a complex band pass made of a shift by -fc, a low pass of +-half and a
+ * shift back, so the other sideband is rejected; the output is the real part, shifted by fc (and by the BFO pitch in CW), with a
+ * slow AGC. audioRate = fs / round(fs / 7812.5) (exactly 7812.5 Hz for the IQS rates).
+ *   CW:  pass +-bw/2 around the dial frequency, heard at the pitch (the signal at the dial frequency gives the pitch)
+ *   USB: pass dial + lo .. dial + hi (default 300 .. 2700 Hz); the dial frequency is the suppressed carrier
  */
-export class CwDemod {
-  constructor(fs, bw = 500, pitch = 700) {
+export class Demod {
+  constructor(fs, { mode = "cw", bw = 500, pitch = 700, lo = 300, hi = 2700 } = {}) {
     this.fs = fs;
     this.d = Math.max(1, Math.round(fs / 7812.5));
     this.audioRate = fs / this.d;
     this.pitch = pitch;
     this.offset = 0;
-    this.ph = 0; this.bfoPh = 0;
-    const t1 = Math.min(1023, 2 * Math.round(3.3 * fs / 1500 / 2) + 1);
-    this.st1 = new Decimator(lowpass(t1, 2500, fs), this.d);
-    this.setBandwidth(bw);
+    this.ph = 0; this.ph2 = 0; this.ph3 = 0;
+    const t1 = Math.min(1023, 2 * Math.round(3.3 * fs / 600 / 2) + 1);
+    this.st1 = new Decimator(lowpass(t1, 3300, fs), this.d);
+    this.setMode(mode, { bw, lo, hi });
     this.gain = 0; this.peak = 0;
     this.warm = Math.round(0.2 * this.audioRate);          // muted while the filters and the AGC settle
   }
 
-  setBandwidth(bw) {
-    this.bw = bw;
-    const taps = 2 * Math.round(3.3 * this.audioRate / Math.max(50, bw / 2) / 2) + 1;
-    this.st2 = new Decimator(lowpass(Math.min(511, taps), bw / 2, this.audioRate), 1);
+  setMode(mode, { bw = this.bw ?? 500, lo = this.lo ?? 300, hi = this.hi ?? 2700 } = {}) {
+    this.mode = mode; this.bw = bw; this.lo = lo; this.hi = hi;
+    this.fc = mode === "usb" ? (lo + hi) / 2 : 0;
+    const half = mode === "usb" ? (hi - lo) / 2 : bw / 2;
+    const transition = mode === "usb" ? 150 : Math.max(50, Math.min(half, 600));        // Hz: USB edges steep enough for 300 Hz
+    const taps = 2 * Math.round(3.3 * this.audioRate / transition / 2) + 1;
+    this.st2 = new Decimator(lowpass(Math.min(511, taps), half, this.audioRate), 1);
   }
 
+  setBandwidth(bw) { this.setMode(this.mode, { bw }); }
+
   setOffset(hz) { this.offset = hz; }
+
+  /** The passband in Hz relative to the dial frequency: [from, to]. */
+  passband() { return this.mode === "usb" ? [this.lo, this.hi] : [-this.bw / 2, this.bw / 2]; }
 
   /** iq: interleaved I, Q; returns a Float32Array of audio samples (about +-0.3). */
   process(iq) {
@@ -159,11 +170,21 @@ export class CwDemod {
     }
     this.ph %= 2 * Math.PI;
     const [r1, i1] = this.st1.run(re, im);
-    const [r2, i2] = this.st2.run(r1, i1);
-    const out = new Float32Array(r2.length), wb = 2 * Math.PI * this.pitch / this.audioRate;
+    // the band pass: down by fc, low pass, back up by fc (+ the CW pitch)
+    const m = r1.length, sr = new Float64Array(m), si = new Float64Array(m), w2 = -2 * Math.PI * this.fc / this.audioRate;
+    for (let k = 0; k < m; k++) {
+      const c = Math.cos(this.ph2), s = Math.sin(this.ph2);
+      sr[k] = r1[k] * c - i1[k] * s;
+      si[k] = r1[k] * s + i1[k] * c;
+      this.ph2 += w2;
+    }
+    this.ph2 %= 2 * Math.PI;
+    const [r2, i2] = this.st2.run(sr, si);
+    const out = new Float32Array(r2.length);
+    const w3 = 2 * Math.PI * (this.fc + (this.mode === "cw" ? this.pitch : 0)) / this.audioRate;
     for (let k = 0; k < r2.length; k++) {
-      const a = r2[k] * Math.cos(this.bfoPh) - i2[k] * Math.sin(this.bfoPh);
-      this.bfoPh += wb;
+      const a = r2[k] * Math.cos(this.ph3) - i2[k] * Math.sin(this.ph3);
+      this.ph3 += w3;
       const mag = Math.hypot(r2[k], i2[k]);
       // AGC: fast attack, slow release (about 1 s)
       this.peak = mag > this.peak ? mag : this.peak * (1 - 1 / this.audioRate);
@@ -173,8 +194,13 @@ export class CwDemod {
       if (this.warm > 0) { this.warm--; out[k] = 0; continue; }
       out[k] = Math.max(-1, Math.min(1, a * this.gain));
     }
-    this.bfoPh %= 2 * Math.PI;
+    this.ph3 %= 2 * Math.PI;
     this.level = this.peak;
     return out;
   }
+}
+
+/** The CW receiver of the first version: Demod in CW mode. */
+export class CwDemod extends Demod {
+  constructor(fs, bw = 500, pitch = 700) { super(fs, { mode: "cw", bw, pitch }); }
 }
