@@ -40,47 +40,40 @@ function log(msg, cls = "") {
 
 /* ------------------------------------------------------------ S3 */
 
-$("s3conn").onclick = async () => {
-  if (st.s3) {
-    await st.s3.close().catch(() => {});
-    st.s3 = null;
-    $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected";
-    $("start").disabled = $("stop").disabled = true;
-    return;
-  }
-  let r = null;
+function disconnectedS3() {
+  st.s3 = null;
+  $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected"; $("s3info").className = "stat";
+  $("start").disabled = $("stop").disabled = true;
+}
+
+/** Opens the S3 on port and checks INFO; throws (with the port closed again) when it is something else. */
+async function connectS3(port) {
+  if (st.c3 && port === st.c3.port) throw new Error("this port is the C3's: pick the other one");
+  const r = new S3Radio(onSamples, (l) => { if (!l.startsWith("I (")) log("S3: " + l); });
   try {
-    const port = await pickPort("s3");
-    if (st.c3 && port === st.c3.port) throw new Error("this port is the C3's: pick the other one");
-    r = new S3Radio(onSamples, (l) => { if (!l.startsWith("I (")) log("S3: " + l); });
     await r.open(port);
     let info = "";
     for (let i = 0; i < 3 && !info; i++) info = await r.cmd("INFO", (l) => /^(S3SDR|ESP32DATV|ERR)/.test(l)).catch(() => "");
-    if (!info.startsWith("S3SDR")) {
-      throw new Error(info ? `not an S3 with ESP-SDR (${info}): pick the other port` : "the S3 does not answer INFO");
-    }
+    if (!info.startsWith("S3SDR")) throw new Error(info ? `not an S3 with ESP-SDR (${info}): pick the other port` : "the S3 does not answer INFO");
     st.s3 = r;
     $("s3info").textContent = info; $("s3info").className = "stat ok";
     $("s3conn").textContent = "Disconnect S3";
     $("start").disabled = false;
   } catch (e) {
-    log("S3: " + e.message, "err");
-    if (r) await r.close();
+    await r.close();
+    throw e;
   }
+}
+
+$("s3conn").onclick = async () => {
+  if (st.s3) { await st.s3.close().catch(() => {}); disconnectedS3(); return; }
+  try { await connectS3(await pickPort("s3")); } catch (e) { log("S3: " + e.message, "err"); }
 };
 
 // a board that resets or is unplugged: drop it, so that "Connect" starts afresh
 navigator.serial?.addEventListener("disconnect", (e) => {
-  if (st.s3 && e.target === st.s3.port) {
-    log("S3 gone (reset or USB)", "err");
-    st.s3 = null; $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected"; $("s3info").className = "stat";
-    $("start").disabled = $("stop").disabled = true;
-  }
-  if (st.c3 && e.target === st.c3.port) {
-    log("C3 gone (reset or USB)", "err");
-    st.c3 = null; $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
-  }
+  if (st.s3 && e.target === st.s3.port) { log("S3 gone (reset or USB)", "err"); disconnectedS3(); }
+  if (st.c3 && e.target === st.c3.port) { log("C3 gone (reset or USB)", "err"); disconnectedC3(); }
 });
 
 $("gainmode").onchange = () => { $("gain").disabled = $("gainmode").value !== "man"; };
@@ -309,49 +302,116 @@ $("preset").onchange = async () => {
 
 /* ------------------------------------------------------------ C3 */
 
-$("c3conn").onclick = async () => {
-  if (st.c3) {
-    st.c3.closing = true;
-    await st.c3.reader.cancel().catch(() => {});
-    st.c3.writer.releaseLock();
-    await st.c3.port.close().catch(() => {});
-    st.c3 = null;
-    $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
-    return;
-  }
-  try {
-    const port = await pickPort("c3");
-    if (st.s3 && port === st.s3.port) throw new Error("this port is the S3's: pick the other one");
-    await port.open({ baudRate: 115200 });
-    try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
-    const c3 = { port, writer: port.writable.getWriter(), reader: port.readable.getReader(), lines: [] };
-    st.c3 = c3;
-    (async () => {
-      let text = "";
-      try {
-        for (;;) {
-          const { value, done } = await c3.reader.read();
-          if (done) break;
-          text += new TextDecoder().decode(value);
-          let n;
-          while ((n = text.indexOf("\n")) >= 0) {
-            const l = text.slice(0, n).replace(/\r$/, ""); text = text.slice(n + 1);
-            if (l) { log("C3: " + l); c3.lines.push(l); if (l.startsWith("CW ON")) $("c3info").textContent = l; }
-          }
+function disconnectedC3() {
+  st.c3 = null;
+  $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
+  for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
+}
+
+async function closeC3(c3) {
+  c3.closing = true;
+  await c3.reader.cancel().catch(() => {});
+  await c3.readDone;
+  try { c3.writer.releaseLock(); } catch (e) { /* gone */ }
+  await c3.port.close().catch(() => {});
+}
+
+/** Opens the C3 on port; checked with "CW", which only reports (INFO would switch a running beacon off). */
+async function connectC3(port) {
+  if (st.s3 && port === st.s3.port) throw new Error("this port is the S3's: pick the other one");
+  await port.open({ baudRate: 115200 });
+  try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
+  const c3 = { port, writer: port.writable.getWriter(), reader: port.readable.getReader(), lines: [] };
+  c3.readDone = (async () => {
+    let text = "";
+    try {
+      for (;;) {
+        const { value, done } = await c3.reader.read();
+        if (done) break;
+        text += new TextDecoder().decode(value);
+        let n;
+        while ((n = text.indexOf("\n")) >= 0) {
+          const l = text.slice(0, n).replace(/\r$/, ""); text = text.slice(n + 1);
+          if (l) { log("C3: " + l); c3.lines.push(l); if (l.startsWith("CW ON")) $("c3info").textContent = l; }
         }
-      } catch (e) { if (!c3.closing) log("C3 read: " + e, "err"); }
-    })();
-    await c3send("INFO");
-    await new Promise((r) => setTimeout(r, 600));
-    if (!c3.lines.some((l) => l.startsWith("ESP32DATV"))) {
-      log("C3: not a C3 with the ESP32-DATV firmware: pick the other port", "err");
-      $("c3conn").onclick();
+      }
+    } catch (e) { if (!c3.closing) log("C3 read: " + e, "err"); }
+    try { c3.reader.releaseLock(); } catch (e) { /* gone */ }
+  })();
+  await c3.writer.write(new TextEncoder().encode("CW\n"));
+  for (let i = 0; i < 15 && !c3.lines.some((l) => l.startsWith("CW ON")); i++) await new Promise((r) => setTimeout(r, 100));
+  if (!c3.lines.some((l) => l.startsWith("CW ON"))) {
+    await closeC3(c3);
+    throw new Error("not a C3 with the cw-beacon firmware: pick the other port");
+  }
+  st.c3 = c3;
+  $("c3conn").textContent = "Disconnect C3";
+  for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = false;
+}
+
+$("c3conn").onclick = async () => {
+  if (st.c3) { await closeC3(st.c3); disconnectedC3(); return; }
+  try { await connectC3(await pickPort("c3")); } catch (e) { log("C3: " + e.message, "err"); }
+};
+
+/* ------------------------------------------------------------ auto connect
+ * Web Serial gives the page no device path and no serial number, and both boards are 303A:1001; but Chrome keeps the ports
+ * this page was once allowed (getPorts, no chooser). Each one is asked "CAPS": the S3 (ESP-SDR) answers "CAPS ...", the C3
+ * "ERR ? (commands: ...)" without switching its beacon off (the byte pauses a running beacon for 5 s). The chooser comes
+ * only when a board is still missing. Through the bridge the ports are known (by MAC). */
+
+async function probe(port) {
+  await port.open({ baudRate: 115200 });
+  try { await port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) { /* not supported */ }
+  const w = port.writable.getWriter(), r = port.readable.getReader();
+  let text = "";
+  const reading = (async () => {
+    try { for (;;) { const { value, done } = await r.read(); if (done) break; text += new TextDecoder("latin1").decode(value); } } catch (e) { /* closed */ }
+  })();
+  try {
+    await w.write(new TextEncoder().encode("\nCAPS\n"));     // the empty line stops a stream left running on an S3
+    for (let i = 0; i < 20 && !/CAPS |commands: INFO/.test(text); i++) await new Promise((res) => setTimeout(res, 100));
+  } finally {
+    await r.cancel().catch(() => {});
+    await reading;
+    r.releaseLock(); w.releaseLock();
+    await port.close().catch(() => {});
+  }
+  return /CAPS /.test(text) ? "s3" : /commands: INFO/.test(text) ? "c3" : null;
+}
+
+$("autoconn").onclick = async () => {
+  $("autoconn").disabled = true;
+  try {
+    await bridgeReady;
+    if (bridge) {
+      if (!st.s3) await connectS3(await pickPort("s3")).catch((e) => log("S3: " + e.message, "err"));
+      if (!st.c3) await connectC3(await pickPort("c3")).catch((e) => log("C3: " + e.message, "err"));
       return;
     }
-    $("c3conn").textContent = "Disconnect C3";
-    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = false;
-  } catch (e) { log("C3: " + e.message, "err"); }
+    const used = () => [st.s3?.port, st.c3?.port];
+    const tryPorts = async (ports) => {
+      for (const p of ports) {
+        if (st.s3 && st.c3) return;
+        if (used().includes(p)) continue;
+        let kind = null;
+        try { kind = await probe(p); } catch (e) { log(`port: ${e.message}`, "err"); continue; }
+        try {
+          if (kind === "s3" && !st.s3) await connectS3(p);
+          else if (kind === "c3" && !st.c3) await connectC3(p);
+          else if (!kind) log("a port answered neither as S3 nor as C3");
+        } catch (e) { log(`${kind}: ${e.message}`, "err"); }
+      }
+    };
+    await tryPorts((await navigator.serial.getPorts()).filter((p) => p.getInfo().usbVendorId === ESPRESSIF.usbVendorId));
+    if (!st.s3 || !st.c3) {
+      log(`still missing: ${[!st.s3 && "S3", !st.c3 && "C3"].filter(Boolean).join(", ")} – allow its port in the dialog (once; Chrome remembers it)`);
+      try { await tryPorts([await navigator.serial.requestPort({ filters: [ESPRESSIF] })]); } catch (e) { /* chooser cancelled */ }
+    }
+    log(`auto connect: S3 ${st.s3 ? "connected" : "not found"}, C3 ${st.c3 ? "connected" : "not found"}`, st.s3 && st.c3 ? "ok" : "");
+  } finally {
+    $("autoconn").disabled = false;
+  }
 };
 
 async function c3send(line) {

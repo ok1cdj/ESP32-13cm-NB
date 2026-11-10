@@ -15,7 +15,12 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
 | http://localhost:8080/?webserial | Web Serial (Chrome / Edge; the browser asks for the port) |
 | http://localhost:8080/?demo | no board: a synthetic keyed tone, to check the page and the audio |
 
-- **Connect S3 / Connect C3**: the page checks `INFO` and refuses a swapped port.
+- **Auto connect**: Web Serial gives the page no device path or serial number and both boards are 303A:1001, but Chrome keeps
+  the ports this page was once allowed. Each is asked `CAPS`: the S3 answers `CAPS …`, the C3 `ERR ? (commands: …)` (its
+  beacon pauses for 5 s, it is not switched off). The chooser comes only for a board still missing; once both ports are
+  allowed, one click connects both (bench: 0.9 s). Through the bridge the ports are known by MAC.
+- **Connect S3 / Connect C3**: one board through the chooser; the page checks it (S3 `INFO`, C3 `CW` – `INFO` would switch a
+  running beacon off) and refuses a swapped port.
 - **Presets**: the C3 test beacon and the Czech 13 cm beacons from the ČRK list (OK0EA 2320.804 JO70UP, …; check the list),
   and the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s. A preset restarts a running stream on its centre.
 - **Start**: the S3's LO 4 MHz below the centre (mode 2), the PLL's rounding computed → exact frequencies on the shared TCXO.
