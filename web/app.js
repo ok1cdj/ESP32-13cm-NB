@@ -702,6 +702,22 @@ function stopTx() {
 $("txbtn").onclick = () => (st.tx ? stopTx() : startTx());
 $("ptt").addEventListener("pointerdown", (e) => { e.preventDefault(); startTx(); });
 for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("ptt").addEventListener(ev, () => { if (st.tx) stopTx(); });
+// Tab is the PTT key: held = transmit (its focus moving is given up on this page; the key repeat is ignored)
+let tabPtt = false;
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  e.preventDefault();
+  if (e.repeat || tabPtt || !st.c3 || $("ptt").disabled) return;
+  tabPtt = true;
+  startTx();
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key !== "Tab" || !tabPtt) return;
+  e.preventDefault();
+  tabPtt = false;
+  if (st.tx) stopTx();
+});
+window.addEventListener("blur", () => { if (tabPtt) { tabPtt = false; if (st.tx) stopTx(); } });   // the window lost the key
 
 bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on http://localhost.", "err"); });
 

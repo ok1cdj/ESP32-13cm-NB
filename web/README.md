@@ -43,7 +43,7 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
   to it hears it strongly even at AMP 1), F.
 
 - **TX (USB through the C3, `SSB ON`)**: source microphone, audio file (WAV …), one tone or two tones; **TX on** toggles,
-  **PTT (hold)** transmits while held. The page makes the analytic USB signal at the C3's rate (50 kS/s): microphone and file
+  **PTT (hold)** transmits while held, and so does the **Tab** key (held; it no longer moves the focus on this page). The page makes the analytic USB signal at the C3's rate (50 kS/s): microphone and file
   through `TxChain` (AudioContext at 50 kHz, decimation to 10 kHz, complex band pass 300–2700 Hz, AGC up to +20 dB with the
   peak at 0.9, interpolation back), tones directly; int16 I, Q to the C3, paced by its fill reports (ring kept near 4000
   pairs = 80 ms; the microphone drops a chunk when the ring runs full and adds silence when it runs low). Stopping the stream
