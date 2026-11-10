@@ -1,5 +1,5 @@
 // The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, through tools/web_bridge.py or Web Serial.
-import { S3Radio, WsPort } from "./iqs.js";
+import { S3Radio, WsPort, pllActual } from "./iqs.js";
 import { Spectrum, CwDemod } from "./dsp.js";
 
 const $ = (id) => document.getElementById(id);
@@ -79,7 +79,7 @@ navigator.serial?.addEventListener("disconnect", (e) => {
   if (st.c3 && e.target === st.c3.port) {
     log("C3 gone (reset or USB)", "err");
     st.c3 = null; $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-    for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = true;
+    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
   }
 });
 
@@ -108,6 +108,7 @@ $("stop").onclick = async () => {
 
 function onSamples(iq) {
   st.samples += iq.length / 2;
+  if (st.cal) calSamples(iq);
   st.spec?.push(iq);
   if (st.node && st.demod) {
     const a = st.demod.process(iq);
@@ -316,7 +317,7 @@ $("c3conn").onclick = async () => {
     await st.c3.port.close().catch(() => {});
     st.c3 = null;
     $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-    for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = true;
+    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = true;
     return;
   }
   try {
@@ -349,7 +350,7 @@ $("c3conn").onclick = async () => {
       return;
     }
     $("c3conn").textContent = "Disconnect C3";
-    for (const id of ["cwon", "cwoff", "c3set"]) $(id).disabled = false;
+    for (const id of ["cwon", "cwoff", "c3set", "dccal"]) $(id).disabled = false;
   } catch (e) { log("C3: " + e.message, "err"); }
 };
 
@@ -362,6 +363,93 @@ $("c3set").onclick = async () => {
   await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`);
   await new Promise((r) => setTimeout(r, 300));
   await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
+};
+
+/* ------------------------------------------------------------ DC calibration of the C3 through the S3
+ * The C3 sends its LO leakage alone (BDC TEST at its LO); the S3, tuned there, measures that line with a single-bin DFT
+ * (0.4 s, after 0.3 s for the new value to settle) while the correction steps through a coordinate search (6 .. 0.4 codes).
+ * Bench 2026-11-10: the S3 next to the C3 (ceramic antenna) sees the leakage at the C3's connector through crosstalk, 25 dB
+ * above the board's own radiation, and the null it finds is the tinySA's (docs/nb-cw-krok1.md). The PHY calibrates anew at
+ * every reset of the C3, so the result holds until the next one; with another antenna or placement check it again. */
+
+function calSamples(iq) {
+  const c = st.cal;
+  for (let k = 0; k < iq.length; k += 2) {
+    if (c.skip > 0) { c.skip--; continue; }
+    const co = Math.cos(c.ph), si = Math.sin(c.ph);
+    c.re += iq[k] * co + iq[k + 1] * si;
+    c.im += iq[k + 1] * co - iq[k] * si;
+    c.ph += c.w;
+    if (++c.n >= c.need) {
+      st.cal = null;
+      c.done(20 * Math.log10(Math.hypot(c.re, c.im) / c.n + 1e-12));
+      return;
+    }
+  }
+  c.ph %= 2 * Math.PI;
+}
+
+function lineLevel(offsetHz) {
+  return new Promise((done) => {
+    st.cal = { skip: Math.round(0.3 * st.fs), need: Math.round(0.4 * st.fs), n: 0, re: 0, im: 0, ph: 0,
+               w: 2 * Math.PI * offsetHz / st.fs, done };          // x e^(-j ph), ph = 2 pi f0 t
+  });
+}
+
+$("dccal").onclick = async () => {
+  if (!st.s3 || !st.c3) { log("DC calibration needs both the S3 and the C3 connected", "err"); return; }
+  if (st.calRunning) return;
+  st.calRunning = true;
+  $("dccal").disabled = true;
+  const prev = { center: $("center").value, rate: $("rate").value, gainmode: $("gainmode").value, gain: $("gain").value, streaming: st.s3.streaming };
+  try {
+    // the C3's LO from its settings: F and NCO of the CW beacon
+    st.c3.lines.length = 0;
+    await c3send("CW");
+    await new Promise((r) => setTimeout(r, 600));
+    const m = st.c3.lines.map((l) => /CW ON (\d).* F ([\d.]+) NCO (-?\d+)/.exec(l)).find(Boolean);
+    if (!m) throw new Error("no CW settings from the C3");
+    const loKhz = Math.round(Number(m[2]) - Number(m[3]) / 1000);
+    const loHz = pllActual(loKhz * 1e3);
+    log(`DC calibration: C3 LO ${(loHz / 1e6).toFixed(6)} MHz, BDC TEST on, S3 there (manual gain 50)`);
+    // the S3 at the LO, manual gain (the AGC would move between the points)
+    if (st.s3.streaming) await st.s3.stop();
+    const r = await st.s3.start(loKhz * 1e3, 256, 16, 50);
+    st.fs = r.fs; st.centerHz = r.centerHz;
+    st.spec = new Spectrum(FFT_N, Math.max(1, Math.round(st.fs / FFT_N / 15)), 32768, drawSpectrum);
+    st.demod = new CwDemod(st.fs, Number($("bw").value), Number($("pitch").value));
+    setListen(loHz);
+    await c3send(`BDC TEST on ${(loKhz / 1e3).toFixed(3)}`);
+    await new Promise((r) => setTimeout(r, 2500));
+    const off = loHz - st.centerHz;
+    const level = async (i, q) => { await c3send(`BDC ${i.toFixed(2)} ${q.toFixed(2)}`); return lineLevel(off); };
+    let i0 = 0, q0 = 0, best = await level(i0, q0), n = 1;
+    const start = best;
+    for (const d of [6, 3, 1.5, 0.75, 0.4]) {
+      for (let moved = true; moved;) {
+        moved = false;
+        for (const [di, dq] of [[d, 0], [-d, 0], [0, d], [0, -d]]) {
+          const L = await level(i0 + di, q0 + dq); n++;
+          if (L < best - 0.3) { i0 += di; q0 += dq; best = L; moved = true; break; }
+        }
+      }
+      log(`DC calibration: step ${d}: I ${i0.toFixed(2)} Q ${q0.toFixed(2)}, ${best.toFixed(1)} dB`);
+    }
+    await c3send(`BDC ${i0.toFixed(2)} ${q0.toFixed(2)}`);
+    log(`DC calibration done: BDC ${i0.toFixed(2)} ${q0.toFixed(2)} (until the C3 resets), leakage ${(best - start).toFixed(1)} dB `
+        + `against 0 0, ${n} points`, "ok");
+  } catch (e) {
+    log("DC calibration: " + e.message, "err");
+  } finally {
+    st.cal = null;
+    await c3send("BDC TEST off").catch(() => {});
+    // the receiver back as it was
+    $("center").value = prev.center; $("rate").value = prev.rate; $("gainmode").value = prev.gainmode; $("gain").value = prev.gain;
+    $("gain").disabled = prev.gainmode !== "man";
+    try { if (st.s3.streaming) await st.s3.stop(); if (prev.streaming) await $("start").onclick(); } catch (e) { /* the user restarts */ }
+    st.calRunning = false;
+    $("dccal").disabled = !st.c3;
+  }
 };
 
 bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on http://localhost.", "err"); });

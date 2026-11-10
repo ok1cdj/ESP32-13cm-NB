@@ -95,6 +95,7 @@
     <label>F <input type="number" id="c3f" step="0.001" value="2320.050"> MHz</label>
     <label>AMP <input type="number" id="c3amp" class="w5" min="1" max="480" value="10"></label>
     <button id="c3set" disabled>Apply</button>
+    <button id="dccal" disabled title="The C3 sends its LO leakage alone (BDC TEST); the S3 measures it through crosstalk and the DC correction is searched for its minimum. Valid until the C3 resets. Shown with the S3's ceramic antenna next to the C3 only.">Calibrate DC (S3)</button>
     <span class="stat">AMP 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm at the C3's connector</span>
   </div>
   <div id="log"></div>
