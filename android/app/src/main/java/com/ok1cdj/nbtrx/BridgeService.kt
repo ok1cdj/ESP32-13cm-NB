@@ -44,7 +44,11 @@ class BridgeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(1, notification("starting"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        // connectedDevice only with a board that has its permission (Android 14+ refuses it otherwise): else the page alone
+        val m = getSystemService(USB_SERVICE) as UsbManager
+        val usb = m.deviceList.values.any { it.vendorId == 0x303A && it.productId == 0x1001 && m.hasPermission(it) }
+        startForeground(1, notification("starting"),
+            if (usb) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         if (!running) {
             running = true
             wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nbtrx:bridge").apply { acquire() }
