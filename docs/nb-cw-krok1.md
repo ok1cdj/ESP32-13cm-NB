@@ -179,6 +179,27 @@ C3 přes 30 dB do tinySA, LO 2320,0296 MHz (NCO +20 kHz):
   **Ověřeno jen s keramickou anténou S3** – po přestavbě S3 na konektor (a při jiném rozmístění desek) změřit znovu.
 - Skripty pokusů: `build/meas/lo_leak*.py`, `build/meas/xtalk_*.py` (mimo git).
 
+### SSB (USB) na C3 – první měření (10. 11. 2026)
+
+`SSB ON` (fork, větev `cw-beacon`): PC posílá analytický signál I/Q 16 bit 50 kS/s (`tools/ssb_tx.py`: tón, dvoutón, WAV),
+C3 lineárně interpoluje na DAC 1,6 MS/s, AMP, NCO na F. Měřeno S3 (koherentně, 1 Hz rozlišení) a tinySA:
+
+| | AMP 100 | AMP 50 |
+|---|---|---|
+| tón 1 kHz | F + 999,6 Hz, +3,8 dBm | |
+| zbytek nosné | −67 dBc (dvoutón −56) | −54 dBc |
+| opačné pásmo | −69 dBc (dvoutón −62 / −63) | −56 / −59 dBc |
+| IM3 (700 + 1900 Hz) | −38 dBc | −47 dBc |
+| obrazy interpolace (tón ± 50 kHz) | −60 / −64 dBc | |
+
+- Ladění: smyčka na 2 MS/s se nevešla (103 z 80 cyklů → DAC jel ~1,55 MS/s, kmitočty o 22 % níž); pozdní vzorky na
+  začátku bloku / páru dělaly čáry ±50 kHz (−28…−44 dBc). Řešení: DAC 1,6 MS/s a práce rozložená po vzorcích páru
+  (pozdě 0,005 % vzorků).
+- **Pevná čára 2320,000 MHz (58 × 40 MHz), −34 dBc**, jen při zapnutém vysílání, i v CW, nezávisle na poloze LO
+  (10–70 kHz). Pravděpodobně harmonická reference 40 MHz (TCXO, ořezaný sinus) – zatím neřešeno; dřív schovaná v RBW
+  100 kHz vedle nosné. S3 má na 2320,000 MHz i vlastní spur.
+- Pro lineární SSB AMP ≤ 50–100. IM3 lepší než esp32-sdr-trx (33 dB).
+
 ### Klíčování (S3, koherentní záznam)
 
 | | rampa 5 ms | rampa 1 ms |
