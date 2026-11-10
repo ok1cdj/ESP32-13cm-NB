@@ -414,6 +414,25 @@ $("autoconn").onclick = async () => {
   }
 };
 
+// The C3's carrier at its connector against AMP (tinySA, 2026-11-10, tools/c3_power.py; ±2 dB), interpolated in log AMP
+const AMP_DBM = [[1, -35.5], [2, -31.0], [3, -27.0], [5, -23.0], [10, -17.0], [20, -11.0], [30, -7.5], [50, -3.5],
+                 [100, 2.5], [150, 5.5], [200, 7.5], [300, 10.5], [400, 12.5], [480, 12.5]];
+function ampDbm(amp) {
+  const a = Math.max(1, Math.min(480, amp));
+  for (let k = 1; k < AMP_DBM.length; k++) {
+    const [a0, p0] = AMP_DBM[k - 1], [a1, p1] = AMP_DBM[k];
+    if (a <= a1) return p0 + (p1 - p0) * Math.log(a / a0) / Math.log(a1 / a0);
+  }
+  return AMP_DBM.at(-1)[1];
+}
+function showAmpDbm() {
+  const a = Number($("c3amp").value), p = ampDbm(a), mw = 10 ** (p / 10);
+  $("c3dbm").textContent = `≈ ${p >= 0 ? "+" : "−"}${Math.abs(p).toFixed(1)} dBm (${mw >= 1 ? mw.toFixed(1) + " mW" : (mw * 1000).toFixed(mw < 0.01 ? 1 : 0) + " µW"})` +
+    (a > 150 ? ", compressed" : "");
+}
+$("c3amp").addEventListener("input", showAmpDbm);
+showAmpDbm();
+
 async function c3send(line) {
   await st.c3.writer.write(new TextEncoder().encode(line + "\n"));
 }

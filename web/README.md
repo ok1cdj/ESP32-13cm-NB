@@ -6,6 +6,7 @@ the CW beacon on the C3 (ESP32-DATV-SA, branch `cw-beacon`). Works offline: ever
 ```sh
 tools/nb_rx.sh                       # bridge + browser on http://localhost:8080 (Ctrl-C ends the bridge)
 tools/web_bridge.py                  # the bridge alone
+tools/web_serve.py                   # the page alone, for Web Serial (no caching: a changed page loads at once)
 node web/test/test.mjs               # tests of the protocol and DSP (recording build/rx/iqs_cw.cf32)
 ```
 
@@ -32,8 +33,9 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
   PHY calibrates anew at every start). Bench 2026-11-10: the page found −1.5 / −1.5, the tinySA at the C3's connector gave
   −39 dBm there against −23 dBm at 0 / 0. **Shown with the S3's ceramic antenna next to the C3 only**: check again after the
   S3 gets a connector or the boards move.
-- **C3**: CW ON / OFF, AMP (power at the connector: 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm; the board also radiates
-  directly: the S3 next to it hears it strongly even at AMP 1), F.
+- **C3**: CW ON / OFF, AMP with its power at the connector next to it (from the measurement of 2026-11-10, `tools/c3_power.py`:
+  linear to AMP 100 ≈ +2.5 dBm, compressed above AMP 150, at most ≈ +12.5 dBm; the board also radiates directly: the S3 next
+  to it hears it strongly even at AMP 1), F.
 
 `iqs.js` (protocol, no DOM) and `dsp.js` (FFT, CW demodulator) are shared by the page and the Node tests.
 

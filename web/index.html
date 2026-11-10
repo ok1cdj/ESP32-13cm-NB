@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- NB 13 cm receiver: ESP32-S3 (ESP-SDR IQS firmware) with spectrum, waterfall and CW audio; C3 CW beacon control.
      tools/web_bridge.py serves it and passes the boards over WebSocket (any browser): http://localhost:8080
-     ?webserial or a plain web server: Web Serial (Chrome / Edge on http://localhost). -->
+     ?webserial or tools/web_serve.py: Web Serial (Chrome / Edge on http://localhost). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -94,10 +94,10 @@
     <button id="cwon" disabled>CW ON</button>
     <button id="cwoff" disabled>CW OFF</button>
     <label>F <input type="number" id="c3f" step="0.001" value="2320.050"> MHz</label>
-    <label>AMP <input type="number" id="c3amp" class="w5" min="1" max="480" value="10"></label>
+    <label>AMP <input type="number" id="c3amp" class="w5" min="1" max="480" value="10"> <span class="stat" id="c3dbm"></span></label>
     <button id="c3set" disabled>Apply</button>
     <button id="dccal" disabled title="The C3 sends its LO leakage alone (BDC TEST); the S3 measures it through crosstalk and the DC correction is searched for its minimum. Valid until the C3 resets. Shown with the S3's ceramic antenna next to the C3 only.">Calibrate DC (S3)</button>
-    <span class="stat">AMP 100 ≈ +3 dBm, 10 ≈ −17 dBm, 3 ≈ −27 dBm at the C3's connector</span>
+    <span class="stat" title="Measured 2026-11-10 with the tinySA (±2 dB): linear to AMP 100, P1dB near AMP 150, at most about +12.5 dBm">dBm at the C3's connector, measured</span>
   </div>
   <div id="log"></div>
 </main>
