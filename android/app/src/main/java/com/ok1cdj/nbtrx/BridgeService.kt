@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
@@ -14,12 +16,14 @@ import android.os.IBinder
 import android.os.PowerManager
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The bridge, a foreground service: the boards on USB (303a:1001, the S3 receiver and the C3 transmitter, told apart by
  * asking them "CAPS": ESP-SDR answers CAPS, the C3's cw-beacon an ERR with its commands, which does not switch its beacon
  * off) and the page's server on 127.0.0.1:[PORT]. A WebSocket on /serial/s3 or /serial/c3 gets that board's bytes both ways;
  * a new one replaces the old. The bytes are passed on unchanged: the page speaks to the boards as it does over Web Serial.
+ * A board plugged in later is added when the activity starts the service again (after its permission); one unplugged is dropped.
  */
 class BridgeService : Service() {
     companion object {
@@ -35,11 +39,20 @@ class BridgeService : Service() {
     private class Board(val role: String, val dev: UsbDevice, val cdc: UsbCdc) {
         @Volatile var client: WsConnection? = null
         @Volatile var pumping = false
+        @Volatile var alive = true
     }
 
-    private val boards = mutableMapOf<String, Board>()
+    private val boards = ConcurrentHashMap<String, Board>()
     private var server: WebServer? = null
     private var wake: PowerManager.WakeLock? = null
+
+    private val detached = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            @Suppress("DEPRECATION") val dev = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+            for (b in boards.values.filter { it.dev.deviceName == dev.deviceName }) drop(b)
+            setStatus(summary())
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -52,14 +65,30 @@ class BridgeService : Service() {
         if (!running) {
             running = true
             wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nbtrx:bridge").apply { acquire() }
+            registerReceiver(detached, IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED))
             Thread({ bringUp() }, "bridge-up").start()
+        } else {
+            Thread({ scan(); setStatus(summary()) }, "bridge-scan").start()          // started again: boards plugged in since
         }
         return START_NOT_STICKY
     }
 
     private fun bringUp() {
+        scan()
+        try {
+            server = WebServer(assets, PORT, ::bridgeJson, ::attach).also { it.start() }
+        } catch (e: IOException) {
+            setStatus("server on port $PORT: ${e.message}")
+            return
+        }
+        setStatus(summary())
+    }
+
+    /** Opens and identifies the permitted boards the bridge does not have yet. */
+    @Synchronized private fun scan() {
         val m = getSystemService(USB_SERVICE) as UsbManager
-        for (dev in m.deviceList.values.filter { it.vendorId == 0x303A && it.productId == 0x1001 && m.hasPermission(it) }) {
+        val have = boards.values.map { it.dev.deviceName }
+        for (dev in m.deviceList.values.filter { it.vendorId == 0x303A && it.productId == 0x1001 && m.hasPermission(it) && it.deviceName !in have }) {
             try {
                 val conn = m.openDevice(dev) ?: continue
                 val cdc = UsbCdc(conn, dev)
@@ -70,14 +99,18 @@ class BridgeService : Service() {
                 setStatus("USB: ${e.message}")
             }
         }
-        try {
-            server = WebServer(assets, PORT, ::bridgeJson, ::attach).also { it.start() }
-        } catch (e: IOException) {
-            setStatus("server on port $PORT: ${e.message}")
-            return
-        }
-        setStatus("http://localhost:$PORT  –  S3 ${if ("s3" in boards) "ready" else "missing"}, C3 ${if ("c3" in boards) "ready" else "missing"}")
     }
+
+    /** An unplugged board: its page socket closed (the page sees the port lost), its reader stopped. */
+    private fun drop(b: Board) {
+        boards.remove(b.role, b)
+        b.alive = false
+        b.client?.close()
+        if (!b.pumping) try { b.cdc.close() } catch (_: Exception) { }
+    }
+
+    private fun summary() =
+        "http://localhost:$PORT  –  S3 ${if (boards.containsKey("s3")) "ready" else "missing"}, C3 ${if (boards.containsKey("c3")) "ready" else "missing"}"
 
     /** "s3", "c3" or null: an empty line first (it stops a stream left running on the S3), then CAPS. */
     private fun identify(cdc: UsbCdc): String? {
@@ -118,10 +151,13 @@ class BridgeService : Service() {
                 b.pumping = true
                 Thread({
                     try {
-                        b.cdc.readLoop({ running }) { arr, n -> b.client?.send(arr, n) }
+                        b.cdc.readLoop({ running && b.alive }) { arr, n -> b.client?.send(arr, n) }
                     } catch (e: IOException) {
-                        setStatus("${b.role.uppercase()}: ${e.message}")
-                    } finally { b.pumping = false }
+                        if (b.alive) setStatus("${b.role.uppercase()}: ${e.message}")
+                    } finally {
+                        b.pumping = false
+                        if (!b.alive) try { b.cdc.close() } catch (_: Exception) { }
+                    }
                 }, "usb-${b.role}").start()
             }
         }
@@ -157,6 +193,7 @@ class BridgeService : Service() {
     }
 
     override fun onDestroy() {
+        if (running) unregisterReceiver(detached)
         running = false
         server?.stop()
         for (b in boards.values) { b.client?.close(); try { b.cdc.close() } catch (_: Exception) { } }

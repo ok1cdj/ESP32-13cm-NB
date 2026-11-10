@@ -63,15 +63,15 @@ class MainActivity : Activity() {
     private fun usb() = getSystemService(USB_SERVICE) as UsbManager
     private fun boards() = usb().deviceList.values.filter { it.vendorId == 0x303A && it.productId == 0x1001 }.sortedBy { it.deviceName }
 
-    /** Asks for the permission of the next board that has none (one dialog at a time); when all have it, starts the bridge. */
+    /** Asks for the permission of the next board that has none (one dialog at a time); when all have it, starts the bridge (again). */
     private fun askNext() {
         val m = usb()
         val missing = boards().firstOrNull { !m.hasPermission(it) }
         if (missing != null) {
             val flags = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
             m.requestPermission(missing, PendingIntent.getBroadcast(this, 0, Intent(action).setPackage(packageName), flags))
-        } else if (boards().isNotEmpty() && !BridgeService.running) {
-            BridgeService.start(this)
+        } else if (boards().isNotEmpty()) {
+            BridgeService.start(this)                             // starts it, or makes it look for boards plugged in since
         }
     }
 
