@@ -157,6 +157,8 @@ def cmd_reset(a):
     rows = []
     try:
         for n in range(a.n):
+            if a.erase:
+                log(s3.cmd("PHYCAL ERASE"))                  # the next boot runs the full PHY calibration
             s3.reset()
             s3.cmd(f"TXDC {a.dc[0]} {a.dc[1]}")
             fr, d, car, leak, img, err = measure_lo(s3, sa, a, tag=f"#{n} ")
@@ -340,6 +342,7 @@ def main():
     tx_args(p)
     p.add_argument("-n", type=int, default=10)
     p.add_argument("--null", action="store_true", help="also search the null after every reset")
+    p.add_argument("--erase", action="store_true", help="PHYCAL ERASE before every reset: full PHY calibration at each boot")
     p.set_defaults(fn=cmd_reset)
     a = ap.parse_args()
     a.fn(a)

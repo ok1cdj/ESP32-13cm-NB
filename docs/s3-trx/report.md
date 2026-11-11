@@ -289,6 +289,23 @@ Klient: `tools/s3trx.py`. Úrovně jsou na konektoru S3 (útlum 30 dB přičten)
 - Na −45 dBc a níž je potřeba (a) korekci jemnější než 1 kód (dither DC v bufferu, větší amp při menším analogovém
   zisku) a (b) měření při každém startu, a to vnitřní smyčkou TX→RX nebo přijímačem S3 po TX.
 
+### Vliv kalibrace PHY při startu
+
+Únik bez korekce (amp 50, 6–10 resetů):
+
+| Režim (`CONFIG_ESP_PHY_CALIBRATION_MODE`) | Soubor | Únik průměr | Rozsah | Nula I / Q |
+|---|---|---|---|---|
+| částečná + data z NVS (výchozí, 0) | `reset10_amp50.csv` | −28,5 dBc | −25,0 až −32,5 | −1,1 / −1,5 |
+| plná při každém bootu (`PHYCAL ERASE` před resetem) | `reset6_fullcal.csv` | −30,7 dBc | −28,5 až −34,0 | −0,7 / −1,0 |
+| žádná, jen data z NVS (1, `sdkconfig.defaults.calnone`) | `reset6_calnone.csv` | −31,7 dBc | −28,5 až −35,0 | −0,7 / −1,0 |
+| 10× klíčování v jednom bootu, `TXDC 0 0` | (měřeno skriptem) | −30,0 dBc | −27,5 až −32,5 | |
+| 10× klíčování v jednom bootu, `TXDC −1 −1` | (měřeno skriptem) | −38,0 dBc | −35,5 až −42,0 | |
+
+- **Režim kalibrace PHY na únik prakticky nemá vliv.** Rozdíly jsou v rámci rozptylu.
+- **Rozptyl ±2,5 dB vzniká při každém klíčování**, i v rámci jednoho bootu. Nula se drží u (−1, −1) ±1 kód.
+- Obraz I/Q je ve všech režimech −30,5 až −33,5 dBc. Kalibrace PHY ho tedy neřeší a musí se řešit předkorekcí I/Q
+  ve vzorcích (sdr-trx: 33 → 62 dB).
+
 ### Přepínání TX ↔ RX na jednom čipu
 
 `switch5.csv` a měření latence. Vše bez rebootu a v jednom firmwaru.
@@ -306,10 +323,115 @@ Klient: `tools/s3trx.py`. Úrovně jsou na konektoru S3 (útlum 30 dB přičten)
 - Zrychlení: držet RX kalibraci pro TX i RX MHz (dnes je cache jen pro jednu hodnotu), zkrátit 3ms čekání. Odhad
   TX→RX < 10 ms.
 
-### Drift krystalu, fázový šum
+### Drift krystalu
 
-*(měří se)*
+30min měření od studeného startu (volně / na kovové desce) je **odloženo**, protože kovová deska zatím není.
+Nástroj je připravený: `tools/s3trx.py drift --duration 1800 --note "free, cold start" -o docs/s3-trx/drift_free`
+(kmitočet nosné z tinySA a teplota čipu `TEMP?` každých 10 s).
+
+Krátká zkouška (25 s, deska předtím v RX):
+- čip v klidu 58 °C, po zapnutí TX 65 → 71 °C za 20 s;
+- kmitočet −5,6 → −7,7 ppm za 15 s (≈ −5 kHz na 2320 MHz), pak se ustálí na −7,55 ppm;
+- ustálený stav během série resetů: ±0,02 ppm.
+
+**Krystal XIAO se ohřívá od čipu, takže začátek každého vysílání ujede o ~2 ppm.** Pro CW to nevadí, pro
+SSB/OOK48 to vyžaduje korekci (PPS + teplota čipu) nebo stálé předehřátí (RX běží stále, TX přidá ~13 °C).
+
+### Fázový šum – postup měření
+
+Cíl: porovnat krystal XIAO S3 s deskou s TCXO (C3/S3 se společnou TCXO).
+
+1. **Signál.** Nosná `TXLOOP 2320 100 100000 50 0 40` (2320,2 MHz, +4 dBm), přes 30 dB → přístroj (−26 dBm).
+   Druhý případ: C3 na TCXO `CW SET 2320.2 …` se stejnou úrovní. Před měřením obě desky ≥10 min v provozu (drift).
+2. **Rigol DSA1030.** Center 2320,2 MHz.
+   - Pro offsety 1, 3, 10, 30, 100 kHz span 2,5× offset, RBW ≤ offset/30, VBW = RBW/10, detektor Sample, Avg 16.
+   - Odečíst marker noise na offsetu (Marker → Function → Noise marker, dBm/Hz) minus úroveň nosné → dBc/Hz.
+   - Pod 1 kHz jen orientačně (RBW 10–30 Hz, drift krystalu rozmaže nosnou, viz výše).
+   - **Vlastní šum Rigolu** změřit na tracking generátoru 2320 MHz se stejnou úrovní. Pokud je výsledek do 3 dB od
+     něj, je to jen horní mez.
+3. **tinySA.** `tools/sa_capture.py pn --center 2320.2e6 --ext-att 30 -o docs/s3-trx/pn_xiao` (a `pn_tcxo`).
+   Vlastní šum tinySA (~−87 dBc/Hz na 1 kHz) je horní mez.
+4. **Bez přístroje (relativně).** Nosnou XIAO přijímat referenční S3 na TCXO (`iqs_record.py`, 62,5 kS/s,
+   30 s). PSD po odečtení driftu (fit polynomu fáze) dává šum XIAO + TCXO; TCXO proti C3 změřit stejně.
+5. **Zápis.** CSV z obou přístrojů + PNG do `docs/s3-trx/pn_*`, tabulka dBc/Hz na 1/10/100 kHz.
 
 ## Krok 2 – závěry a doporučení
 
-*(doplňuje se)*
+### Je jednodeskový TRX na XIAO S3 (bez úpravy krystalu) proveditelný?
+
+**Ano.** Ověřeno na neupravené desce:
+- TX funguje dvěma cestami: hardwarová smyčka 40 MS/s (CPU volné) a držený registr (CPU NCO, libovolné Hz).
+  Výkon +3,7 dBm při amp 50, ~+12,7 dBm na hranici komprese.
+- Přepnutí bez rebootu: RX→TX 4 ms, TX→RX 4 ms ve firmwaru, první vzorky IQS 21 ms (stejné LO) / 45 ms (RX LO o 4 MHz
+  níž). RX se po TX nemění.
+- Únik LO bez kalibrace −30 dBc ±2,5 dB, obraz −32 dBc. Obojí je lepší nebo stejné jako C3.
+
+**Rizika a omezení.**
+
+| Riziko | Stav | Co s tím |
+|---|---|---|
+| drift krystalu při TX (~2 ppm za 15 s) | změřeno krátce, 30 min odloženo | PPS + teplota čipu; nebo TCXO; pro CW nevadí |
+| absolutní kmitočet (−7,5 ppm ≈ −17 kHz) | změřeno | korekce PPS (krok F), do té doby ruční `FOFS`/offset |
+| únik LO −30 dBc, rozptyl ±2,5 dB při každém klíčování | změřeno | korekce TXDC (−38 dBc), jemnější než 1 kód, větší amp |
+| obraz I/Q −32 dBc | změřeno | předkorekce I/Q v bufferu (sdr-trx: 62 dB) |
+| obrazy ZOH u drženého registru (±fs = ±2 MHz) | neměřeno (smyčka 40 MS/s je nemá blízko) | pro CW smyčka; pro SSB interpolace + filtr pásma |
+| smyčkový režim jen offsety k·fs/n (~2,4 kHz) | změřeno | LO po 457,8 Hz + 100 kHz offset; Hz přesně jen v `TXHOLD` |
+| fázový šum krystalu XIAO | neměřeno | postup výše |
+
+### Kalibrace úniku LO s jednou deskou – doporučení
+
+- **(a) Vnitřní kalibrace PHY stačí?** Ne. Dává ~−30 dBc nezávisle na režimu (plná, z NVS, žádná).
+- **(c) Jednorázově tinySA + NVS.** Pevná korekce `TXDC −1 −1` dává **−38 dBc průměrně, nejhůř −30 dBc**. To je
+  levný první krok: uložit (I, Q) do NVS na desku.
+- **(b) Vlastní měření přes RX čipu.** Doporučené pro −45 dBc. Rozptyl vzniká při každém klíčování, takže korekce se
+  musí měřit **po klíčování**. Nabízí se:
+  - krátké klíčování s RX loopbackem (`rom_loopback_mode_en`, neověřeno na S3);
+  - nebo příposlech TX přes přeslech do vlastního RX na začátku vysílání. To u jednoho čipu nejde, protože banka 2
+    slouží TX.
+
+  Pokračovat vnitřní smyčkou (C) jako samostatný experiment.
+- **Jemnost.** 1 kód při amp 50 ≈ −34 dBc. Pracovat s větším amp (150–200) a výkon srazit až za čipem (útlum/PA), nebo
+  ditherovat DC v bufferu smyčky (sub-kódová korekce).
+- **(d) Externí měřák při každém startu** není potřeba.
+
+### Plán přenosu CW/SSB z C3 na S3 (GPL)
+
+Rozhraní stejné jako dnes u C3, aby webová aplikace měnila jen port.
+
+| Příkaz (C3 dnes) | S3 implementace |
+|---|---|
+| `CW SET <Hz> …`, `CW ON/OFF`, `CW SAVE` | LO = PLL (457,8 Hz krok) + offset 100 kHz ve **smyčce** (CPU volné); klíčování obálkou: předpočítané buffery s náběhem (raised cosine 5 ms) přepínané mezi dvěma bankami, nebo `TXHOLD` s obálkou |
+| `SSB ON` + I/Q 50 kS/s od hostu | `TXHOLD` (CPU NCO 1–2 MS/s) + interpolace 50 kS/s → 2 MS/s (FIR polyfáze) na core 0; ring plní USB na core 1 (vzor IZ7PDX `pdx_rf_tx_qpsk_ring`) |
+| `AMP`, `DC` kalibrace | `TXDC` + uložení do NVS; předkorekce I/Q |
+| (nové) RX ↔ TX | `TXOFF` → IQS stream; IQS rámec s příznakem mezery (už existuje) |
+
+Postup:
+1. CW s obálkou + `TXDC` z NVS.
+2. SSB `TXHOLD` s interpolací.
+3. Webová aplikace: jeden port pro TX i RX, PTT = `TXOFF`/IQS.
+4. Předkorekce I/Q.
+5. PPS.
+
+### GPS/PPS – navazující úkol
+
+Návrh v kapitole F platí:
+- MCPWM capture na GPIO1, 80 MHz APB z krystalu;
+- δ z okna 10–30 s, korekce NCO pro TX i RX;
+- index vzorku IQS na hraně PPS.
+
+Měření driftu ukazuje, že korekce musí počítat s **rychlým ohřevem při TX** (2 ppm za 15 s). Proto:
+- PPS měřit i během TX (MCPWM běží nezávisle na smyčce);
+- přidat model `δ(T_chip)` z `TEMP?` pro prvních ~20 s vysílání.
+
+### Jedna deska, nebo dvě (PA/LNA)
+
+- **Jedna S3:**
+  - jeden krystal, koherentní TX/RX, jedna korekce PPS, méně desek;
+  - cena: SPDT u čipu navíc + sekvence CTRL_TX / PA_REQ / LNA_EN z jednoho čipu (piny v kap. F);
+  - přepnutí ~20–45 ms je pro CW/SSB/OOK48 v pořádku.
+- **Dvě desky (dnešní C3 + S3):**
+  - jen jeden spínač u antény, příposlech během TX;
+  - ale bez společné TCXO potřebují obě desky vlastní korekci PPS a C3 je PolyForm.
+
+**Doporučení: jedna S3** (GPL, jeden krystal, jedna korekce). Dvoudeskovou sestavu ponechat jako funkční zálohu,
+dokud S3 nemá CW s obálkou a SSB.
