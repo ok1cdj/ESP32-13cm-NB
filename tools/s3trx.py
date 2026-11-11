@@ -6,6 +6,7 @@
     tools/s3trx.py lo --mode hold --fs 2e6 ...                     (the CPU-held DAC word instead of the replay loop)
     tools/s3trx.py null --amp 50                                   (DC correction TXDC that nulls the LO leakage)
     tools/s3trx.py drift --duration 1800 --note "free, cold start" -o docs/s3-trx/drift_free   (crystal drift, chip temp)
+    tools/s3trx.py cwcal --minutes 5 --rekeys 5 -o docs/s3-trx/cwcal   (CW keyed once: fractional DC null, stability, re-keys)
     tools/s3trx.py reset -n 10 --null --dc I Q -o docs/s3-trx/reset10   (resets: leakage with a fixed DC, own null each time)
 
 The S3's U.FL goes through an attenuator (--ext-att, dB) into the tinySA. TXLOOP keys the transmitter for --ms and the tinySA
@@ -266,6 +267,76 @@ def cmd_drift(a):
         log("wrote", a.out + ".png")
 
 
+def cw_leak(s3, sa, dc=None):
+    """LO leakage (dBm) with the CW carrier running; DC set first (the beacon ramps down, keeps the keying, restarts)."""
+    if dc is not None:
+        s3.cmd(f"CW SET DC {dc[0]:.3f} {dc[1]:.3f}")
+    time.sleep(0.45)                                   # the beacon restarts 300 ms after the command, ramp 5 ms
+    return float(sa.trace().max())
+
+
+def cw_null(s3, sa, lo_seen, ext_att, start=(0.0, 0.0)):
+    """Fractional DC null with the carrier on: P(i, q) = A((i - i0)^2 + (q - q0)^2) + N, three points per axis, refined."""
+    sa.setup(lo_seen - 5e3, lo_seen + 5e3, rbw="3", points=21)
+    i0, q0 = start
+    for d in (2.0, 0.7, 0.25):
+        for axis in (0, 1):
+            p = []
+            for k in (-d, 0, d):
+                dc = (i0 + k, q0) if axis == 0 else (i0, q0 + k)
+                p.append(10 ** ((cw_leak(s3, sa, dc) + ext_att) / 10))
+            curv = p[0] + p[2] - 2 * p[1]
+            if curv > 0:
+                step = max(-2 * d, min(2 * d, (p[0] - p[2]) * d / (2 * curv)))
+                i0, q0 = (i0 + step, q0) if axis == 0 else (i0, q0 + step)
+    return i0, q0, cw_leak(s3, sa, (i0, q0)) + ext_att
+
+
+def cmd_cwcal(a):
+    """CW carrier on (keyed once), fractional DC null, then the leakage with that DC for --minutes; then --rekeys CW OFF/ON."""
+    s3, sa = S3(a.port), TinySA(a.sa_port)
+    rows = []
+    try:
+        for c in (f"CW SET F {a.f / 1e6:.6f}", f"CW SET AMP {a.amp}", "CW SET TEXT", "CW SET CARRIER 600", "CW SET DC 0 0", "CW ON"):
+            s3.cmd(c)
+        st = s3.cmd("CW")
+        time.sleep(0.5)
+        fr = sa.setup(a.f - 60e3, a.f + 30e3, rbw="3", points=301)
+        d = sa.trace() + a.ext_att
+        fc, car = peak(fr, d)
+        lo_seen = fc - float(st.split(" NCO ")[1].split()[0])
+        log(f"carrier {car:.1f} dBm at {fc / 1e6:.6f} MHz; LO leakage expected at {lo_seen / 1e6:.6f} MHz")
+        sa.setup(lo_seen - 5e3, lo_seen + 5e3, rbw="3", points=21)
+        raw = cw_leak(s3, sa) + a.ext_att
+        i0, q0, best = cw_null(s3, sa, lo_seen, a.ext_att)
+        log(f"leakage {raw - car:.1f} dBc without DC; null DC {i0:.2f} {q0:.2f}: {best - car:.1f} dBc")
+        t0 = time.time()
+        while time.time() - t0 < a.minutes * 60:
+            v = cw_leak(s3, sa) + a.ext_att - car
+            temp = float(s3.cmd("TEMP?").split()[1])
+            rows.append([time.time() - t0, 0, v, temp])
+            log(f"{rows[-1][0]:6.0f} s  keyed once  leakage {v:6.1f} dBc  {temp:.1f} C")
+            time.sleep(max(0.0, a.interval - 0.5))
+        for k in range(a.rekeys):
+            s3.cmd("CW OFF")
+            s3.cmd("CW ON")
+            v = cw_leak(s3, sa) + a.ext_att - car
+            rows.append([time.time() - t0, k + 1, v, float(s3.cmd("TEMP?").split()[1])])
+            log(f"re-key {k + 1}: leakage {v:6.1f} dBc with the same DC")
+    finally:
+        try:
+            s3.cmd("CW OFF")
+        except Exception:
+            pass
+        s3.close()
+        sa.close()
+    r = np.array(rows)
+    save(a.out, "t_s,rekey,leak_dbc,temp_c", [r[:, k] for k in range(4)], "%.1f,%d,%.2f,%.2f")
+    k0 = r[r[:, 1] == 0]
+    log(f"keyed once: leakage {k0[:, 2].mean():.1f} dBc mean, {k0[:, 2].min():.1f}..{k0[:, 2].max():.1f}; "
+        f"after re-keys: {r[r[:, 1] > 0][:, 2].round(1).tolist()}")
+
+
 def cmd_cmd(a):
     s3 = S3(a.port)
     try:
@@ -338,6 +409,15 @@ def main():
     p.add_argument("--expect", type=float, default=-15e3, help="expected crystal error at the carrier, Hz (sweep centre)")
     p.add_argument("--note", default="")
     p.set_defaults(fn=cmd_drift)
+    p = sub.add_parser("cwcal")
+    p.add_argument("--f", type=float, default=2320.2e6)
+    p.add_argument("--amp", type=int, default=50)
+    p.add_argument("--minutes", type=float, default=5)
+    p.add_argument("--interval", type=float, default=10)
+    p.add_argument("--rekeys", type=int, default=5)
+    p.add_argument("--ext-att", type=float, default=30)
+    p.add_argument("-o", "--out")
+    p.set_defaults(fn=cmd_cwcal)
     p = sub.add_parser("reset")
     tx_args(p)
     p.add_argument("-n", type=int, default=10)
