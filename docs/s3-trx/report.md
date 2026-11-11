@@ -435,3 +435,50 @@ Měření driftu ukazuje, že korekce musí počítat s **rychlým ohřevem při
 
 **Doporučení: jedna S3** (GPL, jeden krystal, jedna korekce). Dvoudeskovou sestavu ponechat jako funkční zálohu,
 dokud S3 nemá CW s obálkou a SSB.
+
+## Krok 3 – CW maják s obálkou na S3
+
+Firmware `fw/esp-sdr` větev `s3-trx`, `main/targets/esp32s3/s3_cw.h` (GPL, napsáno nově). Má stejné rozhraní jako
+CW maják C3 ([`../nb-cw-krok1.md`](../nb-cw-krok1.md) kap. 2) a přidává pár položek.
+
+| Příkaz | Význam |
+|---|---|
+| `CW` / `CW INFO` | `CW ON <0/1> AUTO … F … NCO … AMP … WPM … CARRIER … RISE … PA … DC i q PPM … FS … LO … LATE … TEXT …` |
+| `CW ON` / `CW OFF` | maják zapnout / vypnout (vypne ho i každý příkaz pro RX) |
+| `CW SET F 2320.2` | kmitočet nosné, MHz (2300–2450) |
+| `CW SET NCO 20000` | nosná − LO, Hz |
+| `CW SET AMP 50` | 1..480 |
+| `CW SET WPM 15`, `CW SET TEXT …` | rychlost, text (≤ 64 znaků) |
+| `CW SET CARRIER 10` | dlouhá nosná po textu, s |
+| `CW SET RISE 5` | náběh/doběh, ms |
+| `CW SET PA 1` | CTRL_TX GPIO7 → 1 ms → PA_REQ GPIO8 kolem klíčovaného TX (piny z kap. F) |
+| `CW SET DC i q` | korekce úniku LO (viz krok 1) |
+| `CW SET PPM -7.55` | chyba krystalu (do PPS ruční) |
+| `CW SET FS 2000000` | rychlost drženého registru |
+| `CW SAVE` / `CW DEFAULTS` | NVS `s3cw` / výchozí hodnoty |
+| `CW SET AUTO 1` | maják po zapnutí |
+
+**Jak to funguje.**
+- Držený registr DAC a NCO (offset `NCO` od LO), obálka raised cosine na vzorcích, smyčka v IRAM na core 0
+  s vypnutými přerušeními.
+- Smyčka každých 1024 vzorků kontroluje FIFO USB. Přijatý bajt spustí doběh obálky a příkaz se vykoná.
+  Maják pokračuje 300 ms po posledním příkazu znovu od začátku textu.
+- LO se žádá v kHz a PLL ho zaokrouhlí dolů na 30 MHz/65536. NCO dorovná zbytek, takže nosná je na F
+  v měřítku krystalu. `PPM` přepočítá na skutečné Hz.
+
+**Měření** (amp 50, 2320,200 MHz, PPM −7,55, 15 WPM, RISE 5 ms, 30 dB → tinySA):
+- Odezva na příkaz během vysílání 3–9 ms (včetně doběhu 5 ms), `LATE 0` (žádný pozdní vzorek při 2 MS/s).
+- Klíčování (`cw_beacon_zerospan.png`, zero span, RBW 10 kHz): tečka 71–89 ms, čárka a mezery 240 ms při rozlišení
+  8,9 ms/bod. Text sedí.
+- Spektrum s max hold 15 s (`cw_beacon_spectrum.png`): nosná +3,3 dBm, únik LO ~−25 dBc o 20 kHz níž, obraz
+  ~−40 dBc o 40 kHz níž.
+- **Kmitočet:** během 45 s majáku +1,4 až +3,9 kHz od 2320,200 MHz. Korekce −7,55 ppm byla změřená při nepřetržité
+  nosné, ale při střídě majáku je krystal chladnější (≈ −6,5 ppm) a teplota se mění s textem a nosnou.
+  → Do PPS počítat s ±1 ppm (±2,5 kHz). Pro příjem CW to stačí.
+- V prvním max hold byla úzká čára na 2320,199 MHz (−19 dBm). Zopakovat se nepodařila, s vypnutým majákem není.
+- `CW SAVE` + `AUTO 1` po resetu maják spustí (ověřeno).
+
+**Zbývá.**
+1. Příjem a dekódování majáku druhou deskou (S3 s TCXO + `cw_analyze.py`). Potřebuje zapojit signál do druhé S3.
+2. Webová aplikace pro jednu desku: S3 dnes odpovídá na `CW` stejně jako C3, ale jeden port nejde otevřít dvakrát.
+3. SSB přes `TXHOLD` s interpolací.
