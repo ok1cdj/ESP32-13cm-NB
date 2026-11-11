@@ -4,6 +4,8 @@
     tools/s3trx.py cmd "TXSTAT?"                                   (one command, prints the answer)
     tools/s3trx.py lo --mhz 2400 --offset 100e3 --amp 50 -o docs/s3-trx/lo_amp50       (carrier, LO leakage, I/Q image)
     tools/s3trx.py lo --mode hold --fs 2e6 ...                     (the CPU-held DAC word instead of the replay loop)
+    tools/s3trx.py null --amp 50                                   (DC correction TXDC that nulls the LO leakage)
+    tools/s3trx.py reset -n 10 --null --dc I Q -o docs/s3-trx/reset10   (resets: leakage with a fixed DC, own null each time)
 
 The S3's U.FL goes through an attenuator (--ext-att, dB) into the tinySA. TXLOOP keys the transmitter for --ms and the tinySA
 sweeps while it is on; the levels are carrier at LO+offset, leakage at LO, image at LO-offset, all in dBm at the S3's connector.
@@ -103,6 +105,119 @@ def measure_lo(s3, sa, a, tag=""):
     return fr, d, car, leak, img, err
 
 
+def leak_dbm(s3, sa, a, lo_seen, i, q):
+    """Restart the tone with DC (i, q) and read the LO leakage (narrow sweep set up by the caller)."""
+    s3.cmd(f"TXDC {i} {q}")
+    s3.cmd(f"TXLOOP {a.mhz} {a.khz} {a.offset:.3f} {a.amp} 0 {a.rate}")
+    time.sleep(0.05)
+    d = sa.trace() + a.ext_att
+    return float(d.max())
+
+
+def find_null(s3, sa, a, lo_seen):
+    """DC correction that nulls the leakage: P(i, q) = A((i - i0)^2 + (q - q0)^2) + N, three points per axis, refined."""
+    sa.setup(lo_seen - 5e3, lo_seen + 5e3, rbw="3", points=21)
+    i0 = q0 = 0.0
+    for d in (24, 8, 3):
+        for axis in (0, 1):
+            p = []
+            for k in (-d, 0, d):
+                i, q = (round(i0 + k), round(q0)) if axis == 0 else (round(i0), round(q0 + k))
+                p.append(10 ** (leak_dbm(s3, sa, a, lo_seen, i, q) / 10))
+            curv = p[0] + p[2] - 2 * p[1]
+            if curv > 0:
+                step = max(-2 * d, min(2 * d, (p[0] - p[2]) * d / (2 * curv)))
+                if axis == 0:
+                    i0 += step
+                else:
+                    q0 += step
+    best = leak_dbm(s3, sa, a, lo_seen, round(i0), round(q0))
+    s3.cmd("TXOFF")
+    s3.cmd("TXDC 0 0")
+    return round(i0), round(q0), best
+
+
+def cmd_null(a):
+    s3, sa = S3(a.port), TinySA(a.sa_port)
+    try:
+        s3.cmd(f"TXDC {a.dc[0]} {a.dc[1]}")
+        fr, d, car, leak, img, err = measure_lo(s3, sa, a)
+        i, q, best = find_null(s3, sa, a, a.mhz * 1e6 + a.khz * 1e3 + err)
+        log(f"null at TXDC {i} {q}: leakage {best:.1f} dBm ({best - car:.1f} dBc), was {leak - car:.1f} dBc")
+        print(f"{i},{q},{best - car:.2f},{leak - car:.2f}")
+    finally:
+        s3.close()
+        sa.close()
+
+
+def cmd_reset(a):
+    """N chip resets; after each: carrier, leakage, image, frequency, the leakage with a fixed DC (--dc) and the own null."""
+    s3, sa = S3(a.port), TinySA(a.sa_port)
+    rows = []
+    try:
+        for n in range(a.n):
+            s3.reset()
+            s3.cmd(f"TXDC {a.dc[0]} {a.dc[1]}")
+            fr, d, car, leak, img, err = measure_lo(s3, sa, a, tag=f"#{n} ")
+            i, q, best = find_null(s3, sa, a, a.mhz * 1e6 + a.khz * 1e3 + err) if a.null else (0, 0, float("nan"))
+            log(f"#{n} null TXDC {i} {q}: {best - car:.1f} dBc")
+            rows.append([n, car, leak - car, img - car, err, i, q, best - car])
+    finally:
+        s3.close()
+        sa.close()
+    r = np.array(rows)
+    save(a.out, "n,carrier_dbm,leak_dbc,image_dbc,freq_err_hz,null_i,null_q,null_dbc", [r[:, k] for k in range(r.shape[1])],
+         "%d,%.2f,%.2f,%.2f,%.0f,%d,%d,%.2f")
+    for k, name in ((2, "leak dBc"), (3, "image dBc"), (5, "null I"), (6, "null Q")):
+        log(f"{name}: mean {np.nanmean(r[:, k]):.1f}, min {np.nanmin(r[:, k]):.1f}, max {np.nanmax(r[:, k]):.1f}")
+
+
+def cmd_switch(a):
+    """TX -> RX -> TX cycles on the one chip: times of each step, the receiver's level and spurs after each TX, the TX frequency."""
+    from iqs_record import Esp, record
+    s3, sa = S3(a.port), TinySA(a.sa_port)
+    lo = a.mhz * 1e6 + a.khz * 1e3
+    fsa = sa.setup(lo + a.offset - 50e3, lo + a.offset + 50e3, rbw="1", points=201)
+    esp = Esp.__new__(Esp)
+    esp.s = s3.s
+    rows = []
+    try:
+        for c in range(a.n):
+            t0 = time.perf_counter()
+            r = s3.cmd(f"TXLOOP {a.mhz} {a.khz} {a.offset:.3f} {a.amp} 0 {a.rate}")
+            t_tx = time.perf_counter() - t0
+            d = sa.trace() + a.ext_att                           # the TX frequency, every cycle
+            fc, car = peak(fsa, d)
+            time.sleep(a.tx_s)
+            t0 = time.perf_counter()
+            st = s3.cmd("TXSTAT?")
+            s3.cmd("TXOFF")
+            t_off = time.perf_counter() - t0
+            st2 = s3.cmd("TXSTAT?").split()
+            t0 = time.perf_counter()
+            x, meta = record(esp, a.rx_center, a.rx_s, 256, 16, a.gain)
+            t_rx = time.perf_counter() - t0 - a.rx_s
+            p = np.abs(x[len(x) // 10:]) ** 2
+            spec = 10 * np.log10(np.abs(np.fft.fftshift(np.fft.fft(x[-16384:] * np.hanning(16384)))) ** 2 + 1e-9)
+            row = [c, t_tx * 1e3, int(st2[3]) / 1e3, t_off * 1e3, t_rx * 1e3, fc - lo - a.offset, car,
+                   10 * np.log10(p.mean() + 1e-12), 10 * np.log10(np.abs(x[len(x) // 10:].mean()) ** 2 + 1e-12),
+                   spec.max() - np.median(spec), meta["frames"], meta["gaps"]]
+            log(f"#{c} TX on {row[1]:.1f} ms (host), off {row[2]:.2f} ms (fw) / {row[3]:.1f} ms (host), RX start "
+                f"{row[4]:.0f} ms incl. FREQ, TX {row[5]:+.0f} Hz {car:.1f} dBm, RX power {row[7]:.1f} dB, DC {row[8]:.1f} dB, "
+                f"spur {row[9]:.1f} dB over median, frames {meta['frames']} gaps {meta['gaps']}  [{r} | {st}]")
+            rows.append(row)
+    finally:
+        try:
+            s3.cmd("TXOFF")
+        except Exception:
+            pass
+        s3.close()
+        sa.close()
+    r = np.array(rows)
+    save(a.out, "cycle,tx_on_host_ms,tx_off_fw_ms,tx_off_host_ms,rx_start_ms,tx_err_hz,tx_dbm,rx_power_db,rx_dc_db,rx_spur_db,"
+         "frames,gaps", [r[:, k] for k in range(r.shape[1])], "%d,%.2f,%.3f,%.2f,%.0f,%.0f,%.2f,%.2f,%.2f,%.2f,%d,%d")
+
+
 def cmd_cmd(a):
     s3 = S3(a.port)
     try:
@@ -140,6 +255,7 @@ def tx_args(p):
     p.add_argument("--points", type=int, default=450)
     p.add_argument("--avg", type=int, default=1, help="loop mode: max of N sweeps")
     p.add_argument("--ext-att", type=float, default=30)
+    p.add_argument("--dc", type=int, nargs=2, default=[0, 0], metavar=("I", "Q"), help="TXDC for the measurement")
     p.add_argument("-o", "--out")
 
 
@@ -155,6 +271,22 @@ def main():
     p = sub.add_parser("lo")
     tx_args(p)
     p.set_defaults(fn=cmd_lo)
+    p = sub.add_parser("null")
+    tx_args(p)
+    p.set_defaults(fn=cmd_null)
+    p = sub.add_parser("switch")
+    tx_args(p)
+    p.add_argument("-n", type=int, default=10)
+    p.add_argument("--tx-s", type=float, default=1.0)
+    p.add_argument("--rx-s", type=float, default=2.0)
+    p.add_argument("--rx-center", type=float, default=2320.2e6)
+    p.add_argument("--gain", type=int, default=40)
+    p.set_defaults(fn=cmd_switch)
+    p = sub.add_parser("reset")
+    tx_args(p)
+    p.add_argument("-n", type=int, default=10)
+    p.add_argument("--null", action="store_true", help="also search the null after every reset")
+    p.set_defaults(fn=cmd_reset)
     a = ap.parse_args()
     a.fn(a)
 
