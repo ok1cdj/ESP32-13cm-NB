@@ -199,7 +199,7 @@ def cmd_switch(a):
             t_rx = time.perf_counter() - t0 - a.rx_s
             p = np.abs(x[len(x) // 10:]) ** 2
             spec = 10 * np.log10(np.abs(np.fft.fftshift(np.fft.fft(x[-16384:] * np.hanning(16384)))) ** 2 + 1e-9)
-            row = [c, t_tx * 1e3, int(st2[3]) / 1e3, t_off * 1e3, t_rx * 1e3, fc - lo - a.offset, car,
+            row = [c, t_tx * 1e3, int(st2[4]) / 1e3, t_off * 1e3, t_rx * 1e3, fc - lo - a.offset, car,
                    10 * np.log10(p.mean() + 1e-12), 10 * np.log10(np.abs(x[len(x) // 10:].mean()) ** 2 + 1e-12),
                    spec.max() - np.median(spec), meta["frames"], meta["gaps"]]
             log(f"#{c} TX on {row[1]:.1f} ms (host), off {row[2]:.2f} ms (fw) / {row[3]:.1f} ms (host), RX start "
