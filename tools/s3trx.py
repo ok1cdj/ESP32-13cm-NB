@@ -5,6 +5,7 @@
     tools/s3trx.py lo --mhz 2400 --offset 100e3 --amp 50 -o docs/s3-trx/lo_amp50       (carrier, LO leakage, I/Q image)
     tools/s3trx.py lo --mode hold --fs 2e6 ...                     (the CPU-held DAC word instead of the replay loop)
     tools/s3trx.py null --amp 50                                   (DC correction TXDC that nulls the LO leakage)
+    tools/s3trx.py drift --duration 1800 --note "free, cold start" -o docs/s3-trx/drift_free   (crystal drift, chip temp)
     tools/s3trx.py reset -n 10 --null --dc I Q -o docs/s3-trx/reset10   (resets: leakage with a fixed DC, own null each time)
 
 The S3's U.FL goes through an attenuator (--ext-att, dB) into the tinySA. TXLOOP keys the transmitter for --ms and the tinySA
@@ -218,6 +219,51 @@ def cmd_switch(a):
          "frames,gaps", [r[:, k] for k in range(r.shape[1])], "%d,%.2f,%.3f,%.2f,%.0f,%.0f,%.2f,%.2f,%.2f,%.2f,%d,%d")
 
 
+def cmd_drift(a):
+    """Continuous carrier (TXLOOP) for --duration s; every --interval s the tinySA's peak frequency and the chip temperature."""
+    s3, sa = S3(a.port), TinySA(a.sa_port)
+    lo = a.mhz * 1e6 + a.khz * 1e3
+    fr = sa.setup(lo + a.offset + a.expect - a.span / 2, lo + a.offset + a.expect + a.span / 2, rbw=a.rbw, points=a.points)
+    rows = []
+    t0 = time.time()
+    try:
+        log(s3.cmd(f"TXLOOP {a.mhz} {a.khz} {a.offset:.3f} {a.amp} 0 {a.rate}", timeout=5))
+        while time.time() - t0 < a.duration:
+            t = time.time() - t0
+            fc, lvl = peak(fr, sa.trace() + a.ext_att)
+            temp = float(s3.cmd("TEMP?").split()[1])
+            err = fc - lo - a.offset
+            rows.append([t, fc, err, err / (lo + a.offset) * 1e6, lvl, temp])
+            log(f"{t:7.0f} s  {fc / 1e6:.6f} MHz  {err:+7.0f} Hz  {rows[-1][3]:+.3f} ppm  {lvl:5.1f} dBm  {temp:.1f} C")
+            time.sleep(max(0.0, a.interval - (time.time() - t0 - t)))
+    finally:
+        try:
+            s3.cmd("TXOFF")
+        except Exception:
+            pass
+        s3.close()
+        sa.close()
+    r = np.array(rows)
+    save(a.out, "t_s,freq_hz,err_hz,err_ppm,dbm,temp_c", [r[:, k] for k in range(r.shape[1])], "%.1f,%.1f,%.1f,%.4f,%.2f,%.2f")
+    if a.out:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(r[:, 0] / 60, r[:, 2], lw=1, label="frequency error")
+        ax.set_xlabel("minutes from TX on")
+        ax.set_ylabel(f"Hz from {(lo + a.offset) / 1e6:.6f} MHz")
+        ax.grid(alpha=0.3)
+        ax2 = ax.twinx()
+        ax2.plot(r[:, 0] / 60, r[:, 5], "r", lw=0.8, label="chip temperature")
+        ax2.set_ylabel("chip temperature, C", color="r")
+        ax.set_title(f"S3 crystal drift, {a.note}: {r[0, 3]:+.2f} -> {r[-1, 3]:+.2f} ppm, "
+                     f"{r[0, 5]:.1f} -> {r[-1, 5]:.1f} C", fontsize=9)
+        fig.tight_layout()
+        fig.savefig(a.out + ".png", dpi=120)
+        log("wrote", a.out + ".png")
+
+
 def cmd_cmd(a):
     s3 = S3(a.port)
     try:
@@ -282,6 +328,14 @@ def main():
     p.add_argument("--rx-center", type=float, default=2320.2e6)
     p.add_argument("--gain", type=int, default=40)
     p.set_defaults(fn=cmd_switch)
+    p = sub.add_parser("drift")
+    tx_args(p)
+    p.add_argument("--duration", type=float, default=1800)
+    p.add_argument("--interval", type=float, default=10)
+    p.add_argument("--span", type=float, default=60e3)
+    p.add_argument("--expect", type=float, default=-15e3, help="expected crystal error at the carrier, Hz (sweep centre)")
+    p.add_argument("--note", default="")
+    p.set_defaults(fn=cmd_drift)
     p = sub.add_parser("reset")
     tx_args(p)
     p.add_argument("-n", type=int, default=10)

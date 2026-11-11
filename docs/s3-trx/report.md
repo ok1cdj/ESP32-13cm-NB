@@ -240,7 +240,75 @@ Rozhodnutí podle výsledků kroku 1.
 
 ## Krok 1 – experimenty
 
-*(doplňuje se)*
+Sestava: XIAO ESP32-S3 Plus bez úprav (MAC 28:84:85:8A:C1:78), U.FL → 30 dB → tinySA Ultra+.
+Firmware: fork ESP-SDR `fw/esp-sdr`, větev `s3-trx`, soubor `main/targets/esp32s3/s3_tx.h` (GPL), build s ESP-IDF 6.1.
+Klient: `tools/s3trx.py`. Úrovně jsou na konektoru S3 (útlum 30 dB přičten), přesnost tinySA ±1–2 dB.
+
+### Vysílání na S3
+
+- **Jak se klíčuje.** `g_phyFuns[47](1)` (vynucený TX), pak `stop_tx_tone(1)` (generátor tónu vypnutý) a předání
+  banky 2. Takto to dělá IZ7PDX.
+  - Varianta z prvního commitu ESP-SDR přes `esp_phy_wifi_tx_tone()` **nevysílala**: ta funkce jen zařadí požadavek
+    pro testovací úlohu PHY. Navíc její parametr 80 znamená útlum 20 dB.
+- **Bit 19 `0x60033D64` = hardwarová smyčka.**
+  - `TXLOOP` přehrává buffer 16 000 slov při 40 MS/s donekonečna a CPU je volné, takže příkazová smyčka i USB běží dál.
+  - Rozpor „hold vs loop“ (C) je tím vyřešen: **loop**.
+  - Offset tónu je ale omezený na k·fs/n (pro 40 MS/s po ~2,4 kHz). Přesně 100 kHz jde.
+- **Držený registr (`TXHOLD`, CPU NCO 2 MS/s, přerušení vypnutá) funguje také.** 8 000 000 vzorků, 0 pozdních,
+  max. zpoždění 15 cyklů. Offset jde nastavit na libovolné Hz, takže je to cesta pro SSB z hostu.
+- **Výkon** (offset +100 kHz, 2320,2 MHz):
+
+  | amp | nosná | únik LO | obraz I/Q |
+  |---|---|---|---|
+  | 50 | +3,7 dBm | −29 až −31 dBc | −32 dBc |
+  | 150 | +12,7 dBm (začíná komprese) | −43 dBc | −21 až −23 dBc |
+
+  Grafy: `lo_loop_amp50.png`, `lo_hold_amp50.png`, `lo_loop_amp150.png`. Oba režimy dávají stejné spektrum.
+- **Kmitočet.** Krystal XIAO spolu s tinySA ukazuje −5 až −7,7 ppm (−12 až −18 kHz na 2320 MHz). Po několika minutách
+  střídavého vysílání se ustálí na −7,55 ppm (±0,02 ppm).
+
+### Únik LO a jeho stabilita po resetu (10×, amp 50)
+
+`reset10_amp50.csv`: po každém resetu se změřil únik a obraz a hledala se nula korekcí `TXDC` (DC v kódech DAC).
+
+| | průměr | rozsah |
+|---|---|---|
+| únik LO bez korekce | −28,5 dBc | −25,0 až −32,5 dBc (absolutně −22 až −29 dBm) |
+| obraz I/Q | −31,7 dBc | −30,5 až −33,0 dBc |
+| nula I / Q (kódy) | −1,1 / −1,5 | I 0…−3, Q −1…−3 |
+| po vynulování | | −32,5 až −48,5 dBc |
+
+`reset10_amp50_dc-1-1.csv`: pevná korekce `TXDC −1 −1` při 10 resetech dala únik **−38,5 dBc průměrně**
+(−30,5 až −48,5 dBc).
+
+**Závěr.**
+- Kalibrace PHY při startu (z NVS, `CONFIG_ESP_PHY_CALIBRATION_MODE=0`) drží únik do ~1–3 kódů DAC. Nula se mezi
+  resety pohybuje o ±1 kód, tedy podobně jako u C3, jen z lepšího výchozího stavu.
+- Jemnost korekce omezuje **kvantizace DAC**: 1 kód při amp 50 ≈ −34 dBc. Pevná korekce v NVS zlepší průměr o 10 dB,
+  ale nejhorší případ zůstane ~−30 dBc.
+- Na −45 dBc a níž je potřeba (a) korekci jemnější než 1 kód (dither DC v bufferu, větší amp při menším analogovém
+  zisku) a (b) měření při každém startu, a to vnitřní smyčkou TX→RX nebo přijímačem S3 po TX.
+
+### Přepínání TX ↔ RX na jednom čipu
+
+`switch5.csv` a měření latence. Vše bez rebootu a v jednom firmwaru.
+
+| Krok | Čas |
+|---|---|
+| RX → TX (`TXLOOP`, firmware: tune + vynucený TX + start enginu) | **4,0 ms** (stejné MHz), 22,8 ms při změně MHz (`rx_recalibrate`) |
+| výpočet bufferu tónu (`TXLOOP`) | 30–60 ms; u `TXHOLD` ~1 ms. Lze počítat předem. |
+| TX → RX (`TXOFF`, firmware) | **4,0 ms** (z toho 3 ms čekání v `prepare_rx`) |
+| TXOFF → první rámec IQS (62,5 kS/s) | **21 ms** stejné LO, **45 ms** s RX LO o 4 MHz níž (přeladění + rekalibrace RX) |
+
+- Příjem po TX (5 cyklů): výkon šumu ±0,4 dB, DC ±0,1 dB, spur stejný, 0 mezer ve streamu.
+  **RX se po TX nemění.**
+- Kmitočet TX mezi cykly kolísá o stovky Hz, což je zahřívání (viz drift).
+- Zrychlení: držet RX kalibraci pro TX i RX MHz (dnes je cache jen pro jednu hodnotu), zkrátit 3ms čekání. Odhad
+  TX→RX < 10 ms.
+
+### Drift krystalu, fázový šum
+
+*(měří se)*
 
 ## Krok 2 – závěry a doporučení
 
