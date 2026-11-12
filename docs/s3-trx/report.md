@@ -584,3 +584,11 @@ Nosná −2,6 až −3,7 dBm. Výchozí chyba krystalu (deska v klidu) −0,68 p
   - Trvale zaklíčovaný vysílač (PTT jen obálkou a PA) odstraní cyklování teploty.
   - Pomalý zbytek doladí PPS přes přijímač S3 (varianta D). Vliv modulace na teplotu je ještě potřeba ověřit.
 - **Desky s TCXO tento problém nemají.**
+
+## Rozhodnutí (12. 11.)
+
+- **Zůstáváme u TCXO:** C3 vysílač + S3 přijímač, obě na TCXO.
+- **Stabilizace neupraveného krystalu se nedělá.** Drift po zaklíčování je 0,1–0,3 ppm/s a PPS ho nedohoní.
+  FT8/OOK48 by nešly vůbec.
+- **GPS PPS později jen pro absolutní kmitočet:** varianta A, S3 měří společné TCXO a host opraví C3.
+- Deska TCXO je hotová. Pro ostatní je problém úprava XIAO, ne deska samotná.
