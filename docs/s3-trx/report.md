@@ -559,3 +559,28 @@ Zbývá doplnit `pps_poll()` do smyčky ringu (`ring_capture.c`) a značku PPS d
 4. odhad přesnosti varianty D.
 
 Vysílač S3 je vypnutý (`CW OFF`, `AUTO 0`).
+
+## Krok 5 – C3 s neupraveným krystalem: drift při vysílání (12. 11.)
+
+Testovací XIAO C3 (MAC AC:27:6E:7F:9F:34, krystal bez úprav) s firmwarem `cw-beacon` (`efc2f8d`), CW nosná AMP 50
+na 2320,2 MHz, 30 dB → tinySA. Výstupy: `tools/c3_ptt_drift.py`, `c3_plain_drift.csv`, `c3_plain_drift.png`.
+Nosná −2,6 až −3,7 dBm. Výchozí chyba krystalu (deska v klidu) −0,68 ppm.
+
+| Fáze | Kmitočet (Hz od 2320,200 MHz) |
+|---|---|
+| nepřetržitá nosná ze studeného stavu, 0 s | −205 |
+| 15 s | −4 482 |
+| 60 s | −6 719 (−2,8 ppm), pak se vrací |
+| 180 s | −4 415 |
+| PTT 10 s zap / 10 s vyp, po zahřátí, uvnitř každé relace | sklouznutí o **300–450 Hz** za 10 s, v pauze zpět |
+
+**Závěr pro SSB s neupraveným krystalem C3:**
+- Krátkodobě je krystal v pořádku. Problém je ohřev čipu při vysílání: **první relace sklouzne o kilohertzy**.
+- I zahřátý vysílač ujede v každé relaci o stovky Hz. Pro hlas je to znatelné (posun výšky), pro FT8/OOK48
+  nepoužitelné.
+- Po delším příjmu (minuty) začíná každá relace opět chladnější, takže se skok opakuje.
+- C3 se chová podobně jako S3: −2 ppm za 15 s.
+- **Bez TCXO je SSB nutné aktivně stabilizovat.**
+  - Trvale zaklíčovaný vysílač (PTT jen obálkou a PA) odstraní cyklování teploty.
+  - Pomalý zbytek doladí PPS přes přijímač S3 (varianta D). Vliv modulace na teplotu je ještě potřeba ověřit.
+- **Desky s TCXO tento problém nemají.**
