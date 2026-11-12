@@ -482,3 +482,80 @@ CW maják C3 ([`../nb-cw-krok1.md`](../nb-cw-krok1.md) kap. 2) a přidává pár
 1. Příjem a dekódování majáku druhou deskou (S3 s TCXO + `cw_analyze.py`). Potřebuje zapojit signál do druhé S3.
 2. Webová aplikace pro jednu desku: S3 dnes odpovídá na `CW` stejně jako C3, ale jeden port nejde otevřít dvakrát.
 3. SSB přes `TXHOLD` s interpolací.
+
+## Krok 4 – únik LO a teplota, směr dál (11. 11. večer)
+
+### Únik LO drží jen do ohřátí čipu
+
+Firmware drží vysílač zaklíčovaný přes všechny příkazy (`CW OFF` / RX ho uvolní). `CW SET DC` bere zlomky kódu
+(1/256, sigma-delta dither). Měření `tools/s3trx.py cwcal` → `cwcal_amp50.csv`:
+
+| Čas od zaklíčování | Teplota čipu | Únik LO (amp 50, bez nové kalibrace) |
+|---|---|---|
+| 0 s | 70 °C | −31,5 dBc |
+| 60 s | 82 °C | −27 dBc |
+| 5 min | 92 °C | −23,5 dBc |
+
+- **Únik se mění s teplotou čipu, i když vysílač zůstává zaklíčovaný.** Jednorázová kalibrace po startu na S3
+  nestačí.
+- Hledání nuly během ohřevu nekonverguje, protože nula se mezitím posouvá.
+- Při nepřetržité nosné se čip zahřeje až na 92 °C.
+- C3 se chová jinak: nula se tam posouvá jen s resetem, ne s ohřevem.
+
+**Srovnání vysílače:**
+
+| | C3 (TCXO) | S3 (krystal XIAO) |
+|---|---|---|
+| Obraz I/Q | −48 dBc | −32 dBc |
+| Únik LO po kalibraci | −40 až −46 dBc, drží | ujíždí s teplotou |
+| Kmitočet | TCXO | −2 ppm za 15 s po zapnutí TX |
+
+→ **Jako vysílač je lepší C3.** S3 by potřebovala předkorekci I/Q, průběžné dolaďování úniku a TCXO nebo PPS.
+
+### GPS 1 PPS – stav a varianty
+
+Firmware `s3_pps.h` (větev `s3-trx`, `a02c2a3`):
+- MCPWM capture na GPIO1 (D0), APB 80 MHz z krystalu, záchyt v hardwaru, registr čtený bez přerušení;
+- NMEA z NEO-6M přes UART1 RX na GPIO44 (D7), 9600 Bd. UART0 pro příkazy je v tomto buildu vypnutý
+  (`sdkconfig.defaults.s3trx`);
+- příkazy `PPS?`, `PPS AVG n`, `GPS?`, `GPS RAW?`;
+- `CW SET PPM AUTO`: NCO majáku sleduje chybu krystalu při každé hraně PPS.
+
+**Zatím neotestováno s GPS** (NEO-6M se připojí 12. 11.).
+
+**Očekávaná přesnost:** limituje jitter PPS NEO-6M (~30 ns RMS), ne S3 (12,5 ns).
+
+| Okno | Chyba | Na 2320 MHz |
+|---|---|---|
+| 10 s | ~4 ppb | ~10 Hz |
+| 30 s | ~1,5 ppb | ~3 Hz |
+
+**Varianty pro C3 (návrh, nic neimplementováno):**
+
+| | Řešení | Hodnocení |
+|---|---|---|
+| A | PPS měří S3 na společném TCXO; host posílá C3 `CW SET F` s opravou | doporučeno pro desky s TCXO; firmware C3 beze změny |
+| B | PPS přímo na C3 | C3 nemá MCPWM ani capture. Čtení pinu ve vysílací smyčce dá ~0,6 µs, tj. ~20 Hz při okně 30 s. Ale IRAM je plná, rozpočet SSB těsný a jde o změnu v PolyForm forku |
+| C | GPSDO: VCTCXO laděné z PWM | potřebuje novou desku TCXO |
+| D | **Zpětná vazba přes RF**, neupravené desky: S3 přijímač s PPS zná svůj kmitočet absolutně, měří nosnou C3 (přeslech) a host C3 doladí | žádná úprava desek, firmware C3 beze změny; reakce ~1 s |
+
+**Přijímač S3 s krystalem + PPS:**
+- opravu lze dělat digitálně u hosta (posun −f·δ);
+- čip při příjmu nemá teplotní skoky;
+- index vzorku na hraně PPS dá UTC pro OOK48/FT8.
+
+Zbývá doplnit `pps_poll()` do smyčky ringu (`ring_capture.c`) a značku PPS do streamu IQS.
+
+### Směr
+
+- Uživatel se kloní k **dvoudeskové variantě** (C3 vysílač + S3 přijímač). Vlastní desky má obě na TCXO.
+- Úprava na TCXO (odstranění krystalu a kondenzátorů, koax) je ale pro lidi bez vybavení riskantní. Proto zachovat
+  i **cestu bez úprav**: S3 s PPS + doladění C3 přes RF (varianta D).
+
+**Další krok po připojení NEO-6M:**
+1. `GPS?` / `PPS?`;
+2. δ v čase v klidu a při TX (`TEMP?`);
+3. vysílání `CW SET PPM AUTO` proti pevnému PPM na tinySA (jen se souhlasem);
+4. odhad přesnosti varianty D.
+
+Vysílač S3 je vypnutý (`CW OFF`, `AUTO 0`).
