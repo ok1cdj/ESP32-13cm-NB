@@ -99,8 +99,12 @@ The C3 firmware is **non-commercial only** (licence of the original by SP8ESA).
 1. Plug in the C3 and the S3 (on the TCXO) and flash them from the page: **Flash C3 (TX)**, **Flash S3 (RX)** (row FW).
 2. **Auto connect** (the browser asks for the ports), then **Start**, choose a preset and **Audio on**.
 
-The page talks to the boards over Web Serial. `?demo` runs it without boards. Android: Chrome there has no Web Serial,
-use the app in [`android/`](android/README.md). Details in [`web/README.md`](web/README.md).
+The page talks to the boards over Web Serial. `?demo` runs it without boards. Details in [`web/README.md`](web/README.md).
+
+**On an Android phone:** Chrome there has no Web Serial; install the **NB TRX** app (APK from
+[Releases](https://github.com/ok1cdj/ESP32-13cm-NB/releases), Android 9+), plug both boards into a USB OTG hub, then
+**Open in Chrome**. The app passes the boards to the page and takes the page itself from the web, kept for offline use
+([`android/`](android/README.md)).
 
 **Locally, with the bridge** (any browser, ports known by name). Python 3 with `pyserial` and `websockets` (the
 bridge); `numpy` and `matplotlib` for the analysis tools. Port defaults are in [`tools/nbports.py`](tools/nbports.py);
