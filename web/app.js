@@ -413,6 +413,7 @@ function stationUi() {
   $("stinfo").className = s.call ? "stat ok" : "stat err";
   $("c3text").value = s.call ? `VVV DE ${s.call}${s.loc ? " " + s.loc : ""}` : "";
   fillBeacons();
+  applyHint();
 }
 $("myloc").onclick = () => {
   if (!navigator.geolocation) { log("no geolocation in this browser", "err"); return; }
@@ -482,7 +483,7 @@ async function connectC3(port) {
           const l = new TextDecoder().decode(raw).replace(/\r$/, "");
           if (l) {
             log("C3: " + l); c3.lines.push(l);
-            if (l.startsWith("CW ON")) $("c3info").textContent = l;
+            if (l.startsWith("CW ON")) { $("c3info").textContent = l; c3.cfg = parseCwLine(l); applyHint(); }
             if (l.startsWith("SSB END") || l.startsWith("ERR SSB")) c3.ssbBusy = false;
           }
         }
@@ -595,20 +596,36 @@ showAmpDbm();
 async function c3send(line) {
   await st.c3.writer.write(new TextEncoder().encode(line + "\n"));
 }
-$("cwon").onclick = () => { if (haveCall()) c3send("CW ON"); };
-$("cwoff").onclick = () => c3send("CW OFF");
-$("c3set").onclick = async () => {
+// F, AMP and the beacon text of the C3 row go to the C3 with Apply, and before CW ON. The C3 answers every CW command with its
+// settings ("CW ON 0 ... F <kHz> ... AMP n ... TEXT ..."): Apply lights up while the row differs from them.
+function parseCwLine(l) {
+  const m = /\bF ([\d.]+) .*\bAMP (\d+)\b.*\bTEXT (.*)$/.exec(l);
+  return m ? { fkhz: Number(m[1]), amp: Number(m[2]), text: m[3].trim() } : null;
+}
+function c3pending() {
+  const cfg = st.c3?.cfg, text = $("c3text").value.trim().toUpperCase();
+  const amp = Math.round(Number($("c3amp").value)), fkhz = Number($("c3f").value) * 1e3;
+  const cmds = [];
+  if (text && text !== cfg?.text) cmds.push(`CW SET TEXT ${text}`);
+  if (amp !== cfg?.amp) cmds.push(`CW SET AMP ${amp}`);
+  if (!cfg || Math.abs(fkhz - cfg.fkhz) > 0.0005) cmds.push(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
+  return cmds;
+}
+function applyHint() { $("c3set").classList.toggle("hint", !!st.c3 && c3pending().length > 0); }
+for (const id of ["c3f", "c3amp", "c3text"]) $(id).addEventListener("input", applyHint);
+/** Sends what differs from the C3's settings; false when the beacon text is not valid Morse. */
+async function applyC3() {
   const text = $("c3text").value.trim().toUpperCase();
-  if (text) {
-    if (!MORSE_RE.test(text)) { log("beacon text: only A-Z 0-9 / ? . , = - + and spaces", "err"); return; }
-    if (!haveCall()) return;
-    await c3send(`CW SET TEXT ${text}`);
-    await new Promise((r) => setTimeout(r, 300));
+  if (text && !MORSE_RE.test(text)) { log("beacon text: only A-Z 0-9 / ? . , = - + and spaces", "err"); return false; }
+  for (const cmd of c3pending()) {
+    await c3send(cmd);
+    await new Promise((r) => setTimeout(r, 300));         // the C3 answers each with its settings
   }
-  await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`);
-  await new Promise((r) => setTimeout(r, 300));
-  await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
-};
+  return true;
+}
+$("cwon").onclick = async () => { if (haveCall() && await applyC3()) await c3send("CW ON"); };
+$("cwoff").onclick = () => c3send("CW OFF");
+$("c3set").onclick = () => { if (!$("c3text").value.trim() || haveCall()) applyC3(); };   // F and AMP alone do not transmit
 
 /* ------------------------------------------------------------ DC calibration of the C3 through the S3
  * The C3 sends its LO leakage alone (BDC TEST at its LO); the S3, tuned there, measures that line with a single-bin DFT

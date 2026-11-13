@@ -32,7 +32,9 @@ every push to `main`). There is no bridge, the page uses Web Serial (Chrome / Ed
   https://dl0tud.tu-dresden.de/beacons/); `tools/beacons_update.py` compares it with DL0TUD's current CSV. A preset restarts a running stream on its centre.
 - **Station (row ST)**: callsign and locator, kept in this browser (localStorage). Without a callsign the page does not
   transmit: CW ON, Calibrate DC (BDC TEST sends the LO leakage), TX and PTT ask for it first. The beacon text is made
-  from them (`VVV DE <call> <locator>`, editable, at most 64 characters of A-Z 0-9 / ? . , = - +) and sent with Apply.
+  from them (`VVV DE <call> <locator>`, editable, at most 64 characters of A-Z 0-9 / ? . , = - +). F, AMP and the
+  text go to the C3 with Apply and before CW ON (only what differs from the settings the C3 reported); Apply lights up
+  while they differ.
 - **Start / Stop** (one button, Stop while the stream runs): the S3's LO 4 MHz below the centre (mode 2), the PLL's rounding computed → exact frequencies on the shared TCXO.
   A new centre, rate or gain on a running stream restarts it (bench: 23–39 ms). The firmware's in-stream retune
   (`T <MHz> <kHz>`) is not used: a kHz-only retune left the LO where it was although `IQSEND` counted it.
