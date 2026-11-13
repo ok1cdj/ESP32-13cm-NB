@@ -15,7 +15,7 @@ android {
         versionName = (findProperty("appVersion") as String?) ?: "0.1-dev"
         versionCode = (findProperty("appCode") as String?)?.toInt() ?: 1
     }
-    // release signing from the environment (CI secrets, the same key as ESP32-ATV); without it the release build stays unsigned
+    // release signing from the environment (CI secrets; locally: set -a; . ~/.android-keys/nbtrx-release.env); without it the release build stays unsigned
     val keystore = System.getenv("NBTRX_KEYSTORE")
     signingConfigs {
         if (keystore != null) create("release") {

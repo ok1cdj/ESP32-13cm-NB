@@ -1,7 +1,7 @@
 # NB TRX (android/): the APK, only for a tag v* (e.g. v0.2): a GitHub pre-release with the APK and its SHA-256, or by hand
 # (workflow_dispatch: the APK as a workflow artifact). Not on every push: the app takes the page from the web (PageFiles),
 # a new app is needed only when the bridge changes.
-# Release signing (the same key as ESP32-ATV) needs the secrets KEYSTORE_B64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD;
+# Release signing (own key, ~/.android-keys/nbtrx-release.jks of OK1CDJ) needs the secrets KEYSTORE_B64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD;
 # without them a debug APK is built instead.
 name: Android APK
 

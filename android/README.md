@@ -18,7 +18,7 @@ app's bridge version is in `/bridge.json`, and the page asks for a newer app whe
 from the web" off: only the kept or built-in copy. The page's firmware row (flasher) is hidden here: Chrome on Android has
 no Web Serial; flash from a computer.
 
-**Download**: the APK of each release (tag `v*`, `.github/workflows/android.yml`, signed with the key of ESP32-ATV) is
+**Download**: the APK of each release (tag `v*`, `.github/workflows/android.yml`, signed with the NB TRX release key) is
 on https://github.com/ok1cdj/ESP32-13cm-NB/releases with its SHA-256.
 
 Build (Android SDK in ~/Android/Sdk, a JDK with javac, e.g. Android Studio's):
