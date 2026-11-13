@@ -42,12 +42,13 @@ Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21
 | Part | Status |
 |---|---|
 | Seeed XIAO ESP32-C3 (TX) and XIAO ESP32-S3 (Plus) (RX), U.FL antenna connector | in use |
-| **TCXO 40 MHz board**, one TCXO for both boards (outputs to XTAL_P of the C3 and the S3, a −46 dB test tap) | **built and working** |
-| RX/TX antenna switch | designed, **not tested or measured yet** |
+| [**TCXO 40 MHz board**](hw/tcxo-40m/README.md), one TCXO for both boards (outputs to XTAL_P of the C3 and the S3, a −46 dB test tap) | **built and working** |
+| [RX/TX antenna switch](hw/tr-switch/README.md) (HMC8038, interlock for the PA) | built, **not tested or measured yet** |
 | PA, LNA | not designed |
 
-Converting a XIAO to the TCXO means removing its crystal and feeding the TCXO to the XTAL_P pin. It is fine work on
-a small module; do it only if you can.
+Both boards come with Gerbers, BOM and pick & place for JLCPCB in `hw/*/vyroba/` (docs in Czech).
+Converting a XIAO to the TCXO means removing its crystal (on the S3 also the shield can) and feeding the TCXO to the
+XTAL_P pin through a U.FL pigtail. It is fine work on a small module; do it only if you can.
 
 Sharing one TCXO between TX and RX makes them coherent: the frequency difference between them is only the PLL rounding,
 which the software computes, so the received beacon sits on the exact Hz.
@@ -87,7 +88,8 @@ tools/nb_rx.sh            # bridge + browser on http://localhost:8080
 
 ## Licence
 
-GPL-3.0 ([`LICENSE`](LICENSE)). `android/.../UsbCdc.kt` comes from ESP32-ATV (GPL-3.0). The firmware forks above keep
+Software and docs: GPL-3.0 ([`LICENSE`](LICENSE)). Hardware in `hw/`: CERN-OHL-S-2.0 ([`hw/LICENSE`](hw/LICENSE)).
+`android/.../UsbCdc.kt` comes from ESP32-ATV (GPL-3.0). The firmware forks above keep
 their own licences.
 
 73 de OK1CDJ

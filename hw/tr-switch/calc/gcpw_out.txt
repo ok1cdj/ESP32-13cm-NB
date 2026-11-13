@@ -1,0 +1,31 @@
+Kontrola FD řešiče proti mikropásku (bez horních zemí, t = 0):
+  W 0.376 h 0.2104 er 4.4: FD  53.0 ohm (eeff 3.287), Hammerstad  52.3 ohm (eeff 3.312), konformní GCPW S->inf  61.1 ohm
+  W 2.900 h 1.5300 er 4.5: FD  49.6 ohm (eeff 3.373), Hammerstad  50.0 ohm (eeff 3.396), konformní GCPW S->inf  56.3 ohm
+
+50 ohm GCPW, měď 35 um, bez masky (FD; konformní vzorec pro srovnání)
+skladba              h mm    er  S mm   W mm  eeff Z0 konf.
+JLC04161H-7628     0.2104  4.40  0.15  0.284  2.78     56.3
+JLC04161H-7628     0.2104  4.40  0.20  0.316  2.92     55.1
+JLC04161H-7628     0.2104  4.40  0.25  0.321  2.95     55.8
+
+JLC04161H-2116     0.1164  4.16  0.15  0.175  2.74     58.0
+JLC04161H-2116     0.1164  4.16  0.20  0.187  2.87     57.1
+JLC04161H-2116     0.1164  4.16  0.25  0.187  2.89     58.0
+
+JLC04161H-3313     0.0994  4.10  0.15  0.153  2.74     58.4
+JLC04161H-3313     0.0994  4.10  0.20  0.161  2.84     57.9
+JLC04161H-3313     0.0994  4.10  0.25  0.158  2.86     59.2
+
+2 vrstvy 1,6 mm    1.5300  4.50  0.15  0.743  2.65     54.9
+2 vrstvy 1,6 mm    1.5300  4.50  0.20  0.931  2.67     54.9
+2 vrstvy 1,6 mm    1.5300  4.50  0.25  1.091  2.68     55.0
+
+Via fence: lambda0 na 2345 MHz = 127.8 mm
+  dielektrikum er 4.4: lambda = 60.9 mm, lambda/10 = 6.09 mm, lambda/20 = 3.05 mm
+  dielektrikum er 4.6: lambda = 59.6 mm, lambda/10 = 5.96 mm, lambda/20 = 2.98 mm
+  vedení 7628 (eeff 2.92): lambda_g = 74.8 mm, lambda_g/4 = 18.7 mm
+
+Launch SMA EM1: středový pad 1.27 mm
+  reference L2 (bez výřezu)    top zem na zemních padech (S 1.515): Z0 =  21.2 ohm
+  reference L3 (výřez v L2)    top zem na zemních padech (S 1.515): Z0 =  65.8 ohm
+  50 ohm s výřezem v L2: zemní měď na TOP 0.31 mm od středového padu
