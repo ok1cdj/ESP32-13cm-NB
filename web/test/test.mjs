@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { IqsParser, crc32, tuning, pllActual } from "../iqs.js";
 import { Spectrum, CwDemod, Demod, Fft, TxChain, TestTones } from "../dsp.js";
+import { locToLatLon, latLonToLoc, distBearing } from "../geo.js";
 
 let fails = 0;
 function check(ok, what) { console.log(`${ok ? "PASS" : "FAIL"} ${what}`); if (!ok) fails++; }
@@ -145,6 +146,17 @@ check(e3 < 0.05 * demod2.level, `2 kHz off: level ${(e3 / demod2.level).toExpone
   const tt = new TestTones(fs, [700, 1900]).next(fs);
   let mx = 0; for (let k = 0; k < tt.length; k += 2) mx = Math.max(mx, Math.hypot(tt[k], tt[k + 1]));
   check(Math.abs(mx - 0.9) < 0.01, `two tones: peak envelope ${mx.toFixed(3)}`);
+}
+
+{ // locators, distance and bearing (beacon presets)
+  const [la, lo] = locToLatLon("JO70UP");
+  check(Math.abs(la - 50.6458) < 1e-3 && Math.abs(lo - 15.7083) < 1e-3, `JO70UP centre ${la.toFixed(4)} ${lo.toFixed(4)}`);
+  check(latLonToLoc(la, lo) === "JO70UP" && latLonToLoc(...locToLatLon("JN78DU")) === "JN78DU", "locator round trip");
+  check(locToLatLon("JZ70") === null && locToLatLon("JO70") !== null, "locator validation");
+  const lp = distBearing(locToLatLon("IO91WM"), locToLatLon("JN18EU"));
+  check(Math.abs(lp.km - 340) < 15 && Math.abs(lp.deg - 150) < 10, `London-Paris ${lp.km.toFixed(0)} km ${lp.deg.toFixed(0)} deg`);
+  const bj = JSON.parse(readFileSync(new URL("../beacons.json", import.meta.url)));
+  check(bj.beacons.every((b) => locToLatLon(b.loc) && b.mhz >= 2320.8 && b.mhz <= 2321), `beacons.json: ${bj.beacons.length} beacons, valid locators and frequencies`);
 }
 
 console.log(fails ? `${fails} FAILED` : "all passed");

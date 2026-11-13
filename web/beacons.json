@@ -1,0 +1,235 @@
+{
+ "about": "13 cm beacons of IARU Region 1 (beacon segment 2320.8-2321.0 MHz) for the page's presets. Ours, edited by hand; sources: CRK beacon list (OK), DL0TUD interactive beacon list by DJ5CW (https://dl0tud.tu-dresden.de/beacons/, reception reports; 'last' = latest report). tools/beacons_update.py compares with DL0TUD. status: qrv | qrt.",
+ "beacons": [
+  {
+   "call": "OK0EA",
+   "mhz": 2320.804,
+   "loc": "JO70UP",
+   "status": "qrv",
+   "last": "2026-11-13",
+   "src": "CRK",
+   "note": "heard at 65 km by OK1CDJ"
+  },
+  {
+   "call": "DB0NCO",
+   "mhz": 2320.81,
+   "loc": "JN59JD",
+   "last": "2025-12-21",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0FKS",
+   "mhz": 2320.825,
+   "loc": "JN49IT",
+   "last": "2011-03-17",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "GB3MHL",
+   "mhz": 2320.83,
+   "loc": "JO02PB",
+   "last": "2009-05-24",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0FGB",
+   "mhz": 2320.832,
+   "loc": "JO50WB",
+   "last": "2026-03-13",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0LBV",
+   "mhz": 2320.845,
+   "loc": "JO61EH",
+   "last": "2024-03-25",
+   "status": "qrt",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0GW",
+   "mhz": 2320.85,
+   "loc": "JO31JK",
+   "last": "2007-04-05",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DM0UB",
+   "mhz": 2320.85,
+   "loc": "JO62KK",
+   "last": "2024-11-04",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0APD",
+   "mhz": 2320.852,
+   "loc": "JO51SA",
+   "last": "2018-12-16",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "UT5UAK/B",
+   "mhz": 2320.853,
+   "loc": "KO50DG",
+   "last": "2009-01-18",
+   "status": "qrt",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0SHF",
+   "mhz": 2320.855,
+   "loc": "JN48WP",
+   "last": "2012-08-11",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "HG9BUB",
+   "mhz": 2320.86,
+   "loc": "KN08FB",
+   "last": "2009-12-01",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "HG5BUC",
+   "mhz": 2320.868,
+   "loc": "JN97LM",
+   "last": "2009-12-01",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "OK0EK",
+   "mhz": 2320.87,
+   "loc": "JN89VJ",
+   "status": "qrv",
+   "src": "CRK"
+  },
+  {
+   "call": "I8EMG/B",
+   "mhz": 2320.88,
+   "loc": "JM89BJ",
+   "last": "2007-10-02",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0YI",
+   "mhz": 2320.88,
+   "loc": "JO42XB",
+   "last": "2015-02-12",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DM0TUD",
+   "mhz": 2320.885,
+   "loc": "JO61UC",
+   "last": "2014-03-21",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "OK0EKL",
+   "mhz": 2320.89,
+   "loc": "JO60LJ",
+   "status": "qrv",
+   "last": "2026-09-11",
+   "src": "CRK"
+  },
+  {
+   "call": "DB0RIE",
+   "mhz": 2320.9,
+   "loc": "JO50NV",
+   "last": "2009-09-09",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0UX",
+   "mhz": 2320.9,
+   "loc": "JN48FX",
+   "last": "2024-10-26",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0MJ",
+   "mhz": 2320.904,
+   "loc": "JO31TB",
+   "last": "2014-04-25",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0XY",
+   "mhz": 2320.912,
+   "loc": "JO51EU",
+   "last": "2026-09-15",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0JO",
+   "mhz": 2320.914,
+   "loc": "JO31SL",
+   "last": "2008-01-01",
+   "status": "qrt",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0VC",
+   "mhz": 2320.923,
+   "loc": "JO54IF",
+   "last": "2021-02-15",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "OK0EL",
+   "mhz": 2320.93,
+   "loc": "JO70SQ",
+   "status": "qrv",
+   "src": "CRK"
+  },
+  {
+   "call": "LX0AOK",
+   "mhz": 2320.935,
+   "loc": "JN29WM",
+   "last": "2014-05-11",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0AJA",
+   "mhz": 2320.96,
+   "loc": "JN59AS",
+   "last": "2014-02-04",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "DB0AS",
+   "mhz": 2320.968,
+   "loc": "JN67CR",
+   "last": "2009-07-12",
+   "status": "qrv",
+   "src": "DL0TUD"
+  },
+  {
+   "call": "OK0EB",
+   "mhz": 2320.97,
+   "loc": "JN78DU",
+   "status": "qrv",
+   "src": "CRK"
+  }
+ ]
+}

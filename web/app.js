@@ -1,6 +1,7 @@
 // The page: S3 receiver (spectrum, waterfall, CW audio) and C3 beacon control, through tools/web_bridge.py or Web Serial.
 import { S3Radio, WsPort, pllActual } from "./iqs.js";
 import { Spectrum, Demod, TxChain, TestTones } from "./dsp.js";
+import { locToLatLon, latLonToLoc, distBearing } from "./geo.js";
 
 const $ = (id) => document.getElementById(id);
 const ESPRESSIF = { usbVendorId: 0x303a };
@@ -359,6 +360,26 @@ function drawAxis(ticks, step, W, v) {
 
 /* ------------------------------------------------------------ presets */
 
+// The 13 cm beacons of beacons.json (IARU Region 1), nearest first from the locator of row ST (by frequency without one).
+// Beacons marked QRT are left out; a beacon last reported years ago shows the year.
+fetch("beacons.json").then((r) => r.json()).then((d) => { st.beacons = d.beacons; fillBeacons(); })
+  .catch((e) => log("beacons.json: " + e.message, "err"));
+function fillBeacons() {
+  if (!st.beacons) return;
+  const here = locToLatLon(station().loc), year = new Date().getFullYear();
+  const list = st.beacons.filter((b) => b.status !== "qrt").map((b) => ({ ...b, d: here && distBearing(here, locToLatLon(b.loc)) }));
+  list.sort((a, b) => (here ? a.d.km - b.d.km : a.mhz - b.mhz));
+  const g = $("beaconopts");
+  g.label = here ? `beacons, nearest to ${station().loc} first` : "beacons (set your locator: nearest first)";
+  g.replaceChildren(...list.map((b) => {
+    const o = document.createElement("option"), f = b.mhz.toFixed(3);
+    const old = b.last && Number(b.last.slice(0, 4)) < year - 2 ? ` (last report ${b.last.slice(0, 4)})` : "";
+    o.value = `${f},${f},256`;
+    o.textContent = `${b.call} ${f} ${b.loc}` + (b.d ? ` · ${Math.round(b.d.km)} km ${Math.round(b.d.deg)}°` : "") + old;
+    return o;
+  }));
+}
+
 $("preset").onchange = async () => {
   if (!$("preset").value) return;
   const [center, listen, decim] = $("preset").value.split(",");
@@ -391,7 +412,16 @@ function stationUi() {
   $("stinfo").textContent = s.call ? `${s.call}${s.loc ? " " + s.loc : ""}` : "set your callsign: needed before the page transmits";
   $("stinfo").className = s.call ? "stat ok" : "stat err";
   $("c3text").value = s.call ? `VVV DE ${s.call}${s.loc ? " " + s.loc : ""}` : "";
+  fillBeacons();
 }
+$("myloc").onclick = () => {
+  if (!navigator.geolocation) { log("no geolocation in this browser", "err"); return; }
+  navigator.geolocation.getCurrentPosition((p) => {
+    $("loc").value = latLonToLoc(p.coords.latitude, p.coords.longitude);
+    $("loc").dispatchEvent(new Event("change"));
+    log(`locator ${$("loc").value} from this device's position (±${Math.round(p.coords.accuracy)} m)`, "ok");
+  }, (e) => log("position: " + e.message, "err"), { timeout: 20000 });
+};
 for (const id of ["call", "loc"]) {
   $(id).value = store.get("nb." + id);
   $(id).addEventListener("change", () => { store.set("nb." + id, $(id).value.trim().toUpperCase()); stationUi(); });

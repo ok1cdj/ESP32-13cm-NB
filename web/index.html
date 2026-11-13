@@ -67,6 +67,7 @@
     <b>ST</b>
     <label>call <input id="call" class="w8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="callsign"></label>
     <label>locator <input id="loc" class="w8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="JO70UP"></label>
+    <button id="myloc" title="The locator from this device's position (the browser asks; the position stays in this page)">my position</button>
     <span class="stat" id="stinfo">kept in this browser; needed before the page transmits</span>
   </div>
   <div class="row">
@@ -77,12 +78,8 @@
     <label>preset <select id="preset">
       <option value="">—</option>
       <option value="2320.050,2320.050,256">C3 test beacon 2320.050</option>
-      <option value="2320.804,2320.804,256">OK0EA 2320.804 JO70UP</option>
-      <option value="2320.870,2320.870,256">OK0EK 2320.870 JN89VJ</option>
-      <option value="2320.890,2320.890,256">OK0EKL 2320.890 JO60LJ</option>
-      <option value="2320.930,2320.930,256">OK0EL 2320.930 JO70SQ</option>
-      <option value="2320.970,2320.970,256">OK0EB 2320.970 JN78DU</option>
       <option value="2320.890,2320.804,64">beacon segment 2320.79–2320.99 (250 kS/s)</option>
+      <optgroup id="beaconopts" label="beacons"></optgroup>
     </select></label>
     <label>centre <input type="number" id="center" step="0.001" value="2320.050"> MHz</label>
     <label>rate <select id="rate">

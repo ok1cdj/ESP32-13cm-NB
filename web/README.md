@@ -25,8 +25,11 @@ every push to `main`). There is no bridge, the page uses Web Serial (Chrome / Ed
   allowed, one click connects both (bench: 0.9 s). Through the bridge the ports are known by MAC.
 - **Connect S3 / Connect C3**: one board through the chooser; the page checks it (S3 `INFO`, C3 `CW` – `INFO` would switch a
   running beacon off) and refuses a swapped port.
-- **Presets**: the C3 test beacon and the Czech 13 cm beacons from the ČRK list (OK0EA 2320.804 JO70UP, …; check the list),
-  and the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s. A preset restarts a running stream on its centre.
+- **Presets**: the C3 test beacon, the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s, and the 13 cm beacons of
+  IARU Region 1 from `beacons.json`, nearest first from the locator (row ST, or **my position**: the browser's
+  geolocation, used in the page only) with distance and bearing; beacons marked QRT left out, old reports show their year.
+  `beacons.json` is ours, edited by hand: the ČRK list for OK, the rest from the reception reports of DL0TUD (DJ5CW,
+  https://dl0tud.tu-dresden.de/beacons/); `tools/beacons_update.py` compares it with DL0TUD's current CSV. A preset restarts a running stream on its centre.
 - **Station (row ST)**: callsign and locator, kept in this browser (localStorage). Without a callsign the page does not
   transmit: CW ON, Calibrate DC (BDC TEST sends the LO leakage), TX and PTT ask for it first. The beacon text is made
   from them (`VVV DE <call> <locator>`, editable, at most 64 characters of A-Z 0-9 / ? . , = - +) and sent with Apply.
