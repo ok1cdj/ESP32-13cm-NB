@@ -27,11 +27,14 @@
   label { max-width: 100%; }
   button { cursor: pointer; }
   button.on { border-color: var(--acc); color: var(--acc); }
+  button.hint { border-color: var(--acc); background: #4a3200; animation: hint 1.2s ease-in-out infinite alternate; }
+  @keyframes hint { to { background: #2a2e33; } }
+  #log .hint { color: var(--acc); }
   button:disabled { opacity: .45; cursor: default; }
   .stat { font: 12px ui-monospace, monospace; color: var(--dim); overflow-wrap: anywhere; }
   .ok { color: var(--ok); } .err { color: var(--err); }
   a { color: var(--acc); }
-  canvas { width: 100%; display: block; background: #000; }
+  canvas { width: 100%; display: block; background: #000; touch-action: manipulation; }
   #spec { height: 220px; border-radius: 4px 4px 0 0; cursor: crosshair; }
   #axis { height: 26px; background: #101214; }
   #wf { height: 320px; border-radius: 0 0 4px 4px; cursor: crosshair; }
@@ -84,7 +87,6 @@
     <label>gain <select id="gainmode"><option value="auto">AGC</option><option value="man">manual</option></select>
       <input type="number" id="gain" class="w5" min="0" max="82" value="60" disabled></label>
     <button id="start" disabled>Start</button>
-    <button id="stop" disabled>Stop</button>
   </div>
   <div class="row">
     <b>RX</b>

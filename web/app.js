@@ -43,7 +43,7 @@ function log(msg, cls = "") {
 function disconnectedS3() {
   st.s3 = null;
   $("s3conn").textContent = "Connect S3"; $("s3info").textContent = "not connected"; $("s3info").className = "stat";
-  $("start").disabled = $("stop").disabled = true;
+  $("start").disabled = true; streamUi(false);
 }
 
 /** Opens the S3 on port and checks INFO; throws (with the port closed again) when it is something else. */
@@ -80,7 +80,7 @@ navigator.serial?.addEventListener("disconnect", (e) => {
 async function applyGain() {
   $("gain").disabled = $("gainmode").value !== "man";
   if (!st.s3?.streaming || st.calRunning) return;
-  await $("start").onclick();
+  await startStream();
   log(`gain ${$("gainmode").value === "man" ? "manual " + $("gain").value : "AGC"} (stream restarted)`);
 }
 $("gainmode").onchange = applyGain;
@@ -92,7 +92,7 @@ $("gain").onchange = applyGain;
 const RETUNE_IN_STREAM = false;
 async function applyCenter() {
   if (!st.s3?.streaming || st.calRunning) return;
-  if (!RETUNE_IN_STREAM || $("rate").value !== st.rateKey) { await $("start").onclick(); return; }
+  if (!RETUNE_IN_STREAM || $("rate").value !== st.rateKey) { await startStream(); return; }
   try {
     st.centerHz = await st.s3.retune(Number($("center").value) * 1e6);
     setListen(st.listenHz);
@@ -100,9 +100,29 @@ async function applyCenter() {
   } catch (e) { log("retune: " + e.message, "err"); }
 }
 $("center").onchange = applyCenter;
-$("rate").onchange = () => { if (st.s3?.streaming && !st.calRunning) $("start").onclick(); };
+$("rate").onchange = () => { if (st.s3?.streaming && !st.calRunning) startStream(); };
 
-$("start").onclick = async () => {
+// One button: Start while stopped, Stop while the stream runs. Restarts from elsewhere (gain, rate, centre, preset,
+// calibration) call startStream() and leave the button to follow the stream.
+function streamUi(on) {
+  $("start").textContent = on ? "Stop" : "Start";
+  $("start").classList.toggle("on", on);
+  calHint();
+}
+
+// The C3's DC correction is lost at every reset of the C3 (its PHY calibrates anew at start): with both boards up and the
+// stream running, ask for Calibrate DC until it has run on this connection of the C3.
+function calHint() {
+  const need = !!(st.s3?.streaming && st.c3 && !st.c3.calDone && !st.calRunning);
+  $("dccal").classList.toggle("hint", need);
+  if (need && !st.c3.calHinted) {
+    st.c3.calHinted = true;
+    log("C3 and S3 ready: run Calibrate DC (S3) now (about 25 s; again after every reset of the C3)", "hint");
+  }
+}
+$("start").onclick = () => (st.s3?.streaming ? stopStream() : startStream());
+
+async function startStream() {
   const [decim, bits] = $("rate").value.split(",").map(Number);
   const gain = $("gainmode").value === "man" ? Number($("gain").value) : null;
   try {
@@ -113,15 +133,15 @@ $("start").onclick = async () => {
     st.demod = newDemod();
     setListen(st.listenHz);
     st.t0 = performance.now(); st.samples = 0;
-    $("stop").disabled = false;
     log(`stream ${(st.fs / 1e3).toFixed(3)} kS/s, ${bits} bit, centre ${(st.centerHz / 1e6).toFixed(6)} MHz (PLL)`, "ok");
   } catch (e) { log("start: " + e.message, "err"); }
-};
+  streamUi(!!st.s3?.streaming);
+}
 
-$("stop").onclick = async () => {
+async function stopStream() {
   try { const r = await st.s3.stop(); log(r); } catch (e) { log("stop: " + e.message, "err"); }
-  $("stop").disabled = true;
-};
+  streamUi(!!st.s3?.streaming);
+}
 
 function onSamples(iq) {
   st.samples += iq.length / 2;
@@ -180,9 +200,9 @@ for (const id of ["spec", "wf"]) {
     if (!st.fs) return;
     const r = e.target.getBoundingClientRect(), v = view();
     let off = v.lo + (e.clientX - r.left) / r.width * v.span;
-    // CW: snap to the strongest bin within +-5 px (USB: the click is the carrier, no snapping)
+    // CW: snap to the strongest bin within +-5 px, +-20 px for a finger (USB: the click is the carrier, no snapping)
     if (st.lastSpec && $("mode").value === "cw") {
-      const bin = st.fs / FFT_N, px = v.span / r.width * 5;
+      const bin = st.fs / FFT_N, px = v.span / r.width * (e.pointerType === "touch" ? 20 : 5);
       let best = -1e9, bf = off;
       for (let f = off - px; f <= off + px; f += bin) {
         const i = Math.round(f / bin) + FFT_N / 2;
@@ -357,6 +377,7 @@ function disconnectedC3() {
   $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
   for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = true;
   if (st.tx) stopTx();
+  calHint();
 }
 
 async function closeC3(c3) {
@@ -414,6 +435,7 @@ async function connectC3(port) {
   st.c3 = c3;
   $("c3conn").textContent = "Disconnect C3";
   for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = false;
+  calHint();
 }
 
 $("c3conn").onclick = async () => {
@@ -550,7 +572,7 @@ function lineLevel(offsetHz) {
 $("dccal").onclick = async () => {
   if (!st.s3 || !st.c3) { log("DC calibration needs both the S3 and the C3 connected", "err"); return; }
   if (st.calRunning) return;
-  st.calRunning = true;
+  st.calRunning = true; calHint();
   $("dccal").disabled = true;
   const prev = { center: $("center").value, rate: $("rate").value, gainmode: $("gainmode").value, gain: $("gain").value, streaming: st.s3.streaming };
   try {
@@ -589,6 +611,7 @@ $("dccal").onclick = async () => {
     await c3send(`BDC ${i0.toFixed(2)} ${q0.toFixed(2)}`);
     log(`DC calibration done: BDC ${i0.toFixed(2)} ${q0.toFixed(2)} (until the C3 resets), leakage ${(best - start).toFixed(1)} dB `
         + `against 0 0, ${n} points`, "ok");
+    st.c3.calDone = true;
   } catch (e) {
     log("DC calibration: " + e.message, "err");
   } finally {
@@ -597,9 +620,11 @@ $("dccal").onclick = async () => {
     // the receiver back as it was
     $("center").value = prev.center; $("rate").value = prev.rate; $("gainmode").value = prev.gainmode; $("gain").value = prev.gain;
     $("gain").disabled = prev.gainmode !== "man";
-    try { if (st.s3.streaming) await st.s3.stop(); if (prev.streaming) await $("start").onclick(); } catch (e) { /* the user restarts */ }
+    try { if (st.s3.streaming) await st.s3.stop(); if (prev.streaming) await startStream(); } catch (e) { /* the user restarts */ }
+    streamUi(!!st.s3?.streaming);
     st.calRunning = false;
     $("dccal").disabled = !st.c3;
+    calHint();
   }
 };
 
