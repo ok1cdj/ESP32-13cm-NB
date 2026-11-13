@@ -63,5 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --latest --title "NB TRX $APP_VERSION" --notes \
-            "NB TRX: the USB bridge app for the 13 cm narrowband page (ESP32-S3 receiver, ESP32-C3 transmitter on USB OTG; Android 9+). The page itself comes from https://ok1cdj.github.io/ESP32-13cm-NB/ and is kept for offline use. Licensed radio amateurs only. SHA-256 in SHA256SUMS."
+          # the notes: this version's section of CHANGELOG.md (the app shows them in its update offer), then the standing text
+          awk -v v="$APP_VERSION" '/^## / { on = ($2 == v); next } on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          printf '\n---\nNB TRX: the USB bridge app for the 13 cm narrowband page (ESP32-S3 receiver, ESP32-C3 transmitter on USB OTG; Android 9+). The page itself comes from https://ok1cdj.github.io/ESP32-13cm-NB/ and is kept for offline use. Licensed radio amateurs only. SHA-256 in SHA256SUMS.\n' >> "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" dist/* --latest --title "NB TRX $APP_VERSION" --notes-file "$RUNNER_TEMP/notes.md"

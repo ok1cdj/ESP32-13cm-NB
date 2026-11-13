@@ -25,7 +25,7 @@ import android.widget.TextView
 
 /**
  * One screen: the boards on USB and their permissions, the bridge on or off, "Open in Chrome" for the page on
- * http://localhost:8080, where the page comes from (PageFiles), and about. Plugging a board in brings the app up
+ * http://localhost:8080, where the page comes from (PageFiles), a newer app on GitHub (UpdateCheck), and about. Plugging a board in brings the app up
  * (USB_DEVICE_ATTACHED) and asks for its permission. Scrolls, and keeps clear of the system bars (edge to edge on Android 15+).
  */
 class MainActivity : Activity() {
@@ -68,8 +68,15 @@ class MainActivity : Activity() {
             setOnCheckedChangeListener { _, on -> PageFiles.setOnline(this@MainActivity, on) }
             setPadding(0, pad, 0, pad / 2)
         })
+        button("Check for updates") { checkUpdates(force = true) }
+        col.addView(Switch(this).apply {
+            text = "Daily check for a new app (GitHub releases)"
+            isChecked = UpdateCheck.enabled(this@MainActivity)
+            setOnCheckedChangeListener { _, on -> UpdateCheck.setEnabled(this@MainActivity, on) }
+            setPadding(0, pad / 2, 0, pad / 2)
+        })
         col.addView(TextView(this).apply {
-            val v = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "?" }
+            val v = version()
             text = Html.fromHtml(
                 "<b>About</b><br>NB TRX $v, bridge ${BridgeService.BRIDGE_VERSION}<br>" +
                 "Ondřej Koloničný, OK1CDJ · <a href=\"https://ok1cdj.com\">ok1cdj.com</a><br>" +
@@ -87,7 +94,37 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 1)
         askNext()
         tick()
+        if (saved == null) checkUpdates(force = false)
     }
+
+    private fun version() = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "?" } catch (_: Exception) { "?" }
+
+    /** A newer app on GitHub (UpdateCheck): once a day, or now with the button. */
+    private fun checkUpdates(force: Boolean) = Thread {
+        val r = UpdateCheck.run(this, version(), force)
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            when (r) {
+                is UpdateCheck.Outcome.Newer -> showUpdate(r.release)
+                UpdateCheck.Outcome.Offline -> if (force) say("Update check: no network?")
+                UpdateCheck.Outcome.UpToDate -> if (force) say("NB TRX ${version()} is up to date")
+                UpdateCheck.Outcome.NotNow -> {}
+            }
+        }
+    }.start()
+
+    private fun showUpdate(r: UpdateCheck.Release) {
+        val notes = r.notes.let { if (it.length > 1500) it.take(1500).substringBeforeLast('\n') + "\n…" else it }
+        android.app.AlertDialog.Builder(this).setTitle("NB TRX ${r.version}")
+            .setMessage("A new app is out (this is ${version()}). Install the APK over this one, the settings stay." +
+                if (notes.isNotEmpty()) "\n\nWhat's new:\n$notes" else "")
+            .setPositiveButton("Download") { _, _ -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.url))) }
+            .setNeutralButton("Skip this version") { _, _ -> UpdateCheck.skip(this, r.version) }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+
+    private fun say(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_LONG).show()
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); askNext(); refresh() }   // a board plugged in
 
