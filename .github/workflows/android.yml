@@ -1,4 +1,4 @@
-# NB TRX (android/): the APK, only for a tag v* (e.g. v0.2): a GitHub pre-release with the APK and its SHA-256, or by hand
+# NB TRX (android/): the APK, only for a tag v* (e.g. v0.2): a GitHub release (latest) with the APK and its SHA-256, or by hand
 # (workflow_dispatch: the APK as a workflow artifact). Not on every push: the app takes the page from the web (PageFiles),
 # a new app is needed only when the bridge changes.
 # Release signing (own key, ~/.android-keys/nbtrx-release.jks of OK1CDJ) needs the secrets KEYSTORE_B64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD;
@@ -58,10 +58,10 @@ jobs:
           name: nbtrx-${{ env.APP_VERSION }}
           path: dist/
 
-      - name: Pre-release
+      - name: Release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --prerelease --title "NB TRX $APP_VERSION" --notes \
+          gh release create "$GITHUB_REF_NAME" dist/* --latest --title "NB TRX $APP_VERSION" --notes \
             "NB TRX: the USB bridge app for the 13 cm narrowband page (ESP32-S3 receiver, ESP32-C3 transmitter on USB OTG; Android 9+). The page itself comes from https://ok1cdj.github.io/ESP32-13cm-NB/ and is kept for offline use. Licensed radio amateurs only. SHA-256 in SHA256SUMS."
