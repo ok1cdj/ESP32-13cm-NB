@@ -19,7 +19,9 @@ from the web" off: only the kept or built-in copy. The page's firmware row (flas
 no Web Serial; flash from a computer.
 
 **Download**: the APK of each release (tag `v*`, `.github/workflows/android.yml`, signed with the NB TRX release key) is
-on https://github.com/ok1cdj/ESP32-13cm-NB/releases with its SHA-256.
+on https://github.com/ok1cdj/ESP32-13cm-NB/releases with its SHA-256. The release text is the version's section of
+[CHANGELOG.md](../CHANGELOG.md). The app checks for a newer release once a day (*Check for updates* asks right away, the
+daily check can be switched off) and offers it with that text.
 
 Build (Android SDK in ~/Android/Sdk, a JDK with javac, e.g. Android Studio's):
 

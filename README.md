@@ -104,7 +104,9 @@ The page talks to the boards over Web Serial. `?demo` runs it without boards. De
 **On an Android phone:** Chrome there has no Web Serial; install the **NB TRX** app (APK from
 [Releases](https://github.com/ok1cdj/ESP32-13cm-NB/releases), Android 9+), plug both boards into a USB OTG hub, then
 **Open in Chrome**. The app passes the boards to the page and takes the page itself from the web, kept for offline use
-([`android/`](android/README.md)).
+([`android/`](android/README.md)). It offers a newer release by itself (once a day).
+
+**What changed** in the app and the page: [CHANGELOG.md](CHANGELOG.md).
 
 **Locally, with the bridge** (any browser, ports known by name). Python 3 with `pyserial` and `websockets` (the
 bridge); `numpy` and `matplotlib` for the analysis tools. Port defaults are in [`tools/nbports.py`](tools/nbports.py);
