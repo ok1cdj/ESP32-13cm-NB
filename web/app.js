@@ -240,6 +240,28 @@ $("audio").onclick = async () => {
   } catch (e) { log("audio: " + e.message, "err"); }
 };
 $("vol").oninput = () => st.node?.port.postMessage({ volume: Number($("vol").value) });
+// The receiver keeps playing while transmitting (full duplex, headphones), and its AGC follows the C3, which the S3 hears some
+// 70 dB above the noise; its 1 s release would leave it silent for about 10 s afterwards. So the AGC's state from before the
+// PTT is put back 0.5 s after the C3's SSB END (the S3's stream and the audio ring run behind).
+function rxAgcSave() {
+  clearTimeout(st.rxTimer);
+  if (!st.agcSaved && st.demod) st.agcSaved = { demod: st.demod, peak: st.demod.peak, gain: st.demod.gain };
+}
+function rxAgcRestore() {
+  clearTimeout(st.rxTimer);
+  const t0 = performance.now();
+  const poll = () => {
+    if (st.tx) return;
+    if (st.c3?.ssbBusy && performance.now() - t0 < 5000) { st.rxTimer = setTimeout(poll, 100); return; }
+    st.rxTimer = setTimeout(() => {
+      const a = st.agcSaved;
+      if (st.tx || !a) return;
+      if (a.demod === st.demod) { st.demod.peak = a.peak; st.demod.gain = a.gain; }
+      st.agcSaved = null;
+    }, 500);
+  };
+  poll();
+}
 
 /* ------------------------------------------------------------ drawing */
 
@@ -785,10 +807,20 @@ $("dccal").onclick = async () => {
 /* ------------------------------------------------------------ USB transmit through the C3 (SSB ON)
  * The page makes the analytic USB signal at the C3's rate (50 kS/s): the microphone or an audio file through TxChain (band pass
  * 300-2700 Hz, AGC), or test tones directly; the int16 I, Q pairs go to the C3 after its OK line. The C3's fill reports pace the
- * stream: files and tones are topped up to about TX_FILL pairs, the microphone (real time) drops a chunk when the ring runs
- * full (latency) and adds silence when it runs low. Stopping the stream is the PTT: the C3 goes off 0.5 s later by itself.
+ * stream of files and tones: topped up to about TX_FILL pairs. The microphone runs in real time and its chunks go out as
+ * they come; the pairs still queued for the C3 are counted by the page's clock (the fill reports come late), silence is
+ * added only when that queue has run dry and a chunk is dropped when it holds more than MIC_MAX (latency). Stopping the stream is the PTT: the C3 goes off 0.5 s later by itself.
  * The C3 transmits at its F and AMP: into a dummy load or an attenuator only. */
 const TX_FILL = 4000;                                        // pairs in the C3's ring (8192 = 164 ms) the stream aims at
+const MIC_Q = 2000, MIC_MAX = 5000;                          // the microphone: queued pairs after a dry queue (40 ms), most (100 ms)
+/** Pairs sent and not yet played by the C3 (its ring and on the way), by the page's clock at its rate; a fresh fill report
+ * that is clearly higher wins (the C3 played slower). */
+function queued(tx) {
+  const now = performance.now(), c3 = st.c3;
+  tx.q = Math.max(0, tx.q - (now - tx.qt) * tx.fs / 1000); tx.qt = now;
+  if (c3 && now - c3.fillAt < 50 && c3.fill > tx.q + 1500) tx.q = c3.fill;
+  return tx.q;
+}
 function showTxUi() {
   const s = $("txsrc").value;
   $("txtl").style.display = s === "tone" || s === "two" ? "" : "none";
@@ -808,6 +840,7 @@ function sendPairs(tx, iq) {                                 // Float32 interlea
   for (let k = 0; k < iq.length; k += 2) pk = Math.max(pk, Math.hypot(iq[k], iq[k + 1]));
   tx.peak = Math.max(pk, tx.peak * 0.9);
   tx.sent += iq.length / 2;
+  if (tx.qt) { queued(tx); tx.q += iq.length / 2; }
   const c3 = st.c3;
   tx.writes = tx.writes.then(() => c3.writer.write(new Uint8Array(v.buffer))).catch((e) => log("TX write: " + e.message, "err"));
 }
@@ -819,6 +852,7 @@ async function startTx() {
   const released = () => !tx.running || st.tx !== tx;
   try {
     $("txbtn").textContent = "TX off"; $("txbtn").classList.add("on"); $("ptt").classList.add("on");
+    rxAgcSave();
     // the previous run first has to end (0.5 s after its last data): in SSB mode the C3 takes every byte as audio
     for (let i = 0; i < 40 && st.c3.ssbBusy; i++) await new Promise((r) => setTimeout(r, 100));
     if (st.c3.ssbBusy) throw new Error("the C3 is still in its last SSB run");
@@ -843,14 +877,16 @@ async function startTx() {
         tx.node.port.onmessage = (e) => {
           if (!tx.running) return;
           acc.push(e.data); n += e.data.length;
-          if (n < 1000) return;
+          if (n < 500) return;                                // about 10 ms
           const a = new Float32Array(n); let o = 0; for (const c of acc) { a.set(c, o); o += c.length; } acc = []; n = 0;
           const iq = tx.chain.process(a);
           if (!tx.on) { pending = [iq]; return; }               // before OK SSB: only the newest chunk is kept
           for (const p of pending.splice(0)) sendPairs(tx, p);
-          const fill = st.c3.fill || 0;
-          if (fill > 7000) return;                            // the ring is full: drop, so that the latency stays low
-          if (fill < 1000) sendPairs(tx, new Float32Array(2 * 500));
+          const q = queued(tx), now = performance.now();
+          if (tx.lastChunk) tx.maxGap = Math.max(tx.maxGap || 0, now - tx.lastChunk);
+          tx.lastChunk = now;
+          if (q > MIC_MAX) { tx.drops = (tx.drops || 0) + 1; return; }   // after a stall of the page: drop, so that the latency stays low
+          if (q < 100) { tx.gaps = (tx.gaps || 0) + 1; sendPairs(tx, new Float32Array(2 * Math.round(MIC_Q - q))); }   // run dry: one gap, then the margin again
           sendPairs(tx, iq);
         };
       } else {
@@ -872,7 +908,8 @@ async function startTx() {
     const fs = Number((/RATE (\d+)/.exec(ok) || [0, FS])[1]);
     if (fs !== FS) throw new Error(`the C3 runs SSB at ${fs} S/s, the page at ${FS}`);
     if (released()) { tx.running = true; sendPairs(tx, new Float32Array(2 * 500)); tx.running = false; return; }   // a short tap: 10 ms, then off
-    sendPairs(tx, new Float32Array(2 * 2000));                   // 40 ms of silence first: no underrun at the start
+    tx.fs = fs; tx.q = 0; tx.qt = performance.now();
+    sendPairs(tx, new Float32Array(2 * MIC_Q));                  // 40 ms of silence first: no underrun at the start
     tx.on = true;
     if (tones) {
       tx.pump = setInterval(() => { if (tx.running && (st.c3.fill || 0) < TX_FILL) sendPairs(tx, tones.next(1250)); }, 10);
@@ -886,7 +923,9 @@ async function startTx() {
     }
     if (released()) { clearInterval(tx.pump); return; }
     tx.status = setInterval(() => {
-      $("txinfo").textContent = `${src}, ${(tx.sent / fs).toFixed(1)} s sent, C3 ring ${st.c3?.fill ?? "-"} pairs, underruns ${st.c3?.under ?? "-"}`;
+      $("txinfo").textContent = `${src}, ${(tx.sent / fs).toFixed(1)} s sent, queued ${(queued(tx) / fs * 1e3).toFixed(0)} ms, ` +
+        `C3 ring ${st.c3?.fill ?? "-"} pairs, underruns ${st.c3?.under ?? "-"}` +
+        (src === "mic" ? `, gaps ${tx.gaps || 0}, drops ${tx.drops || 0}, longest wait ${(tx.maxGap || 0).toFixed(0)} ms` : "");
       $("txmeter").style.width = `${Math.min(100, tx.peak * 100)}%`;
     }, 200);
     log(`TX on: ${ok.slice(0, 90)}`, "ok");
@@ -906,6 +945,7 @@ function stopTx() {
   tx.stream?.getTracks().forEach((t) => t.stop());
   tx.ctx?.close().catch(() => {});
   st.tx = null;
+  rxAgcRestore();
   $("txbtn").textContent = "TX on"; $("txbtn").classList.remove("on"); $("ptt").classList.remove("on");
   $("txmeter").style.width = "0%";
   log("TX off (the C3 stops 0.5 s after the last data)");
