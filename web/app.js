@@ -877,6 +877,18 @@ window.addEventListener("keyup", (e) => {
 });
 window.addEventListener("blur", () => { if (tabPtt) { tabPtt = false; if (st.tx) stopTx(); } });   // the window lost the key
 
+// The flasher (ESP Web Tools) needs Web Serial and free ports: not through a bridge (the Android app, tools/web_bridge.py).
+const HOSTED = "https://ok1cdj.github.io/ESP32-13cm-NB/";
+// The bridge's protocol version (/bridge.json "version", none before it existed): a newer page may need a newer app.
+const BRIDGE_MIN = 1;
+bridgeReady.then((b) => {
+  if (b && (b.version ?? 0) < BRIDGE_MIN)
+    log(`this page needs a newer bridge (version ${BRIDGE_MIN}, have ${b.version ?? 0}): update the NB TRX app / tools/web_bridge.py`, "err");
+  if (!b) { import("./vendor/esp-web-tools/install-button.js").catch((e) => log("flasher: " + e.message, "err")); return; }
+  $("fwrow").replaceChildren(Object.assign(document.createElement("b"), { textContent: "FW" }),
+    Object.assign(document.createElement("span"), { className: "stat",
+      innerHTML: `Flash the boards from a computer (Chrome / Edge): <a href="${HOSTED}" target="_blank" rel="noopener">${HOSTED}</a>` }));
+});
 bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on a computer (https or http://localhost).", "err"); });
 
 // ?demo: no board; a synthetic stream (noise and a keyed tone 1 kHz above the centre) to check the page and the audio

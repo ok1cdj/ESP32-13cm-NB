@@ -1,6 +1,5 @@
 package com.ok1cdj.nbtrx
 
-import android.content.res.AssetManager
 import android.util.Base64
 import java.io.BufferedInputStream
 import java.io.IOException
@@ -12,12 +11,12 @@ import java.net.Socket
 import java.security.MessageDigest
 
 /**
- * The page's server on 127.0.0.1, as tools/web_bridge.py on the PC: plain HTTP for the files of web/ (from the APK's assets)
+ * The page's server on 127.0.0.1, as tools/web_bridge.py on the PC: plain HTTP for the files of the page (from [files]: see PageFiles)
  * and /bridge.json, and WebSocket (RFC 6455, binary frames) for /serial/s3 and /serial/c3, which [onSocket] connects to a board.
  * Small on purpose: GET only, one request per connection, no TLS (the browser treats localhost as a secure context).
  */
 class WebServer(
-    private val assets: AssetManager,
+    private val files: (String) -> ByteArray?,
     private val port: Int,
     private val bridgeJson: () -> String,
     private val onSocket: (path: String, ws: WsConnection) -> Unit,
@@ -64,9 +63,7 @@ class WebServer(
             if (path == "/bridge.json") return reply(out, 200, "application/json", bridgeJson().toByteArray(), sock)
             val rel = if (path == "/" || path.isEmpty()) "index.html" else path.trimStart('/')
             if (rel.contains("..")) return reply(out, 404, "text/plain", "not found\n".toByteArray(), sock)
-            val body = try { assets.open("web/$rel").use { it.readBytes() } } catch (_: IOException) {
-                return reply(out, 404, "text/plain", "not found\n".toByteArray(), sock)
-            }
+            val body = files(rel) ?: return reply(out, 404, "text/plain", "not found\n".toByteArray(), sock)
             reply(out, 200, mime(rel), body, sock)
         } catch (_: IOException) {
             try { sock.close() } catch (_: IOException) { }

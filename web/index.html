@@ -3,7 +3,8 @@
      ESP32-C3 (CW beacon, USB from the microphone, a file or test tones).
      tools/web_bridge.py serves it and passes the boards over WebSocket (any browser): http://localhost:8080
      ?webserial or tools/web_serve.py: Web Serial (Chrome / Edge on http://localhost).
-     Hosted on https (GitHub Pages): Web Serial, no bridge. Firmware row: ESP Web Tools (vendor/) with the images in fw/. -->
+     Hosted on https (GitHub Pages): Web Serial, no bridge. Firmware row: ESP Web Tools (vendor/) with the images in fw/,
+     only without a bridge (the bridge holds the ports; Android has no Web Serial). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -143,7 +144,7 @@
     <label>out <div class="meter"><div id="txmeter"></div></div></label>
     <span class="stat" id="txinfo"></span>
   </div>
-  <div class="row">
+  <div class="row" id="fwrow">
     <b>FW</b>
     <esp-web-install-button manifest="fw/c3/manifest.json"><button slot="activate">Flash C3 (TX)</button>
       <span slot="unsupported" class="stat err">flashing needs Web Serial (Chrome / Edge on a computer)</span></esp-web-install-button>
@@ -156,6 +157,5 @@
   <div id="log"></div>
 </main>
 <script type="module" src="app.js"></script>
-<script type="module" src="vendor/esp-web-tools/install-button.js"></script>
 </body>
 </html>

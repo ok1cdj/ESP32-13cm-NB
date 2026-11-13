@@ -13,14 +13,20 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Html
+import android.text.method.LinkMovementMethod
 import android.view.Gravity
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 
 /**
- * One screen: the boards on USB and their permissions, the bridge on or off, and "Open in Chrome" for the page on
- * http://localhost:8080. Plugging a board in brings the app up (USB_DEVICE_ATTACHED) and asks for its permission.
+ * One screen: the boards on USB and their permissions, the bridge on or off, "Open in Chrome" for the page on
+ * http://localhost:8080, where the page comes from (PageFiles), and about. Plugging a board in brings the app up
+ * (USB_DEVICE_ATTACHED) and asks for its permission. Scrolls, and keeps clear of the system bars (edge to edge on Android 15+).
  */
 class MainActivity : Activity() {
     private lateinit var info: TextView
@@ -35,6 +41,14 @@ class MainActivity : Activity() {
         super.onCreate(saved)
         val pad = (16 * resources.displayMetrics.density).toInt()
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad) }
+        val scroll = ScrollView(this).apply {
+            addView(col)
+            setOnApplyWindowInsetsListener { _, ins ->
+                val b = ins.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                col.setPadding(pad + b.left, pad + b.top, pad + b.right, pad + b.bottom)
+                ins
+            }
+        }
         col.addView(TextView(this).apply { text = "NB 13 cm TRX"; textSize = 22f; setTypeface(typeface, Typeface.BOLD) })
         col.addView(TextView(this).apply {
             text = "USB bridge for the web page: ESP32-S3 receiver and ESP32-C3 transmitter on USB OTG (a powered hub for both), " +
@@ -48,7 +62,26 @@ class MainActivity : Activity() {
         button("Start bridge") { BridgeService.start(this); ui.postDelayed({ refresh() }, 1500) }
         button("Open in Chrome") { openPage() }
         button("Stop bridge") { BridgeService.stop(this); ui.postDelayed({ refresh() }, 300) }
-        setContentView(col)
+        col.addView(Switch(this).apply {
+            text = "Latest page from the web (kept for offline use; off: the kept or built-in copy only)"
+            isChecked = PageFiles.online(this@MainActivity)
+            setOnCheckedChangeListener { _, on -> PageFiles.setOnline(this@MainActivity, on) }
+            setPadding(0, pad, 0, pad / 2)
+        })
+        col.addView(TextView(this).apply {
+            val v = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "?" }
+            text = Html.fromHtml(
+                "<b>About</b><br>NB TRX $v, bridge ${BridgeService.BRIDGE_VERSION}<br>" +
+                "Ondřej Koloničný, OK1CDJ · <a href=\"https://ok1cdj.com\">ok1cdj.com</a><br>" +
+                "Page: <a href=\"${PageFiles.BASE}\">${PageFiles.BASE}</a><br>" +
+                "Source: <a href=\"https://github.com/ok1cdj/ESP32-13cm-NB\">github.com/ok1cdj/ESP32-13cm-NB</a><br>" +
+                "Licence GPL-3.0. For licensed radio amateurs: transmit only with your callsign, within your licence and band plan.<br>" +
+                "If you like the project: <a href=\"https://buymeacoffee.com/ok1cdj\">Buy Me a Coffee</a> ☕",
+                Html.FROM_HTML_MODE_COMPACT)
+            movementMethod = LinkMovementMethod.getInstance()
+            setPadding(0, pad, 0, 0)
+        })
+        setContentView(scroll)
         val f = IntentFilter(action)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(permission, f, RECEIVER_NOT_EXPORTED) else registerReceiver(permission, f)
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 1)
@@ -87,7 +120,7 @@ class MainActivity : Activity() {
             val sn = if (m.hasPermission(d)) try { d.serialNumber } catch (_: SecurityException) { null } else null
             "  ${d.deviceName}  ${sn ?: "(no permission yet)"}"
         }.ifEmpty { "  none (303a:1001)" }
-        info.text = "ESP32 boards on USB:\n$list\n\nbridge: ${BridgeService.status}"
+        info.text = "ESP32 boards on USB:\n$list\n\nbridge: ${BridgeService.status}\npage: ${PageFiles.lastSource}"
     }
 
     private fun tick() { refresh(); ui.postDelayed({ tick() }, 1000) }

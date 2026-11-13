@@ -28,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap
 class BridgeService : Service() {
     companion object {
         const val PORT = 8080
+        /** In /bridge.json: the page asks for a newer app when it needs a newer bridge (tools/web_bridge.py says the same). */
+        const val BRIDGE_VERSION = 1
         @Volatile var status: String = "stopped"
             private set
         @Volatile var running = false
@@ -76,7 +78,8 @@ class BridgeService : Service() {
     private fun bringUp() {
         scan()
         try {
-            server = WebServer(assets, PORT, ::bridgeJson, ::attach).also { it.start() }
+            val page = PageFiles(this)
+            server = WebServer(page::get, PORT, ::bridgeJson, ::attach).also { it.start() }
         } catch (e: IOException) {
             setStatus("server on port $PORT: ${e.message}")
             return
@@ -133,7 +136,7 @@ class BridgeService : Service() {
     }
 
     private fun bridgeJson(): String = JSONObject()
-        .put("s3", "/serial/s3").put("c3", "/serial/c3")
+        .put("version", BRIDGE_VERSION).put("s3", "/serial/s3").put("c3", "/serial/c3")
         .put("ports", JSONObject().apply { for ((r, b) in boards) put(r, "USB ${b.dev.deviceName} ${serialOf(b.dev)}") })
         .toString()
 
@@ -184,7 +187,7 @@ class BridgeService : Service() {
         nm.createNotificationChannel(NotificationChannel("bridge", "USB bridge", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, "bridge")
-            .setSmallIcon(R.drawable.ic_nb)
+            .setSmallIcon(R.drawable.ic_stat_nb)
             .setContentTitle("NB TRX bridge")
             .setContentText(text)
             .setContentIntent(open)

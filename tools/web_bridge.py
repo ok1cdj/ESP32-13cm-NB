@@ -41,7 +41,7 @@ def process_request(conn, request):
     if path in BOARDS:
         return None
     if path == "/bridge.json":
-        body = json.dumps({"s3": "/serial/s3", "c3": "/serial/c3", "ports": {"s3": RX_PORT, "c3": TX_PORT}}).encode()
+        body = json.dumps({"version": 1, "s3": "/serial/s3", "c3": "/serial/c3", "ports": {"s3": RX_PORT, "c3": TX_PORT}}).encode()
         return Response(200, "OK", Headers([("Content-Type", "application/json"), ("Content-Length", str(len(body))),
                                             ("Cache-Control", "no-store")]), body)
     rel = "index.html" if path in ("/", "") else path.lstrip("/")

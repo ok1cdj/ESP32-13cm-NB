@@ -15,8 +15,21 @@ android {
         versionName = (findProperty("appVersion") as String?) ?: "0.1-dev"
         versionCode = (findProperty("appCode") as String?)?.toInt() ?: 1
     }
+    // release signing from the environment (CI secrets, the same key as ESP32-ATV); without it the release build stays unsigned
+    val keystore = System.getenv("NBTRX_KEYSTORE")
+    signingConfigs {
+        if (keystore != null) create("release") {
+            storeFile = file(keystore)
+            storePassword = System.getenv("NBTRX_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("NBTRX_KEY_ALIAS")
+            keyPassword = System.getenv("NBTRX_KEY_PASSWORD")
+        }
+    }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -29,7 +42,7 @@ android {
 }
 
 val copyWeb by tasks.registering(Copy::class) {
-    from(rootProject.file("../web")) { exclude("test/**", "README.md") }
+    from(rootProject.file("../web")) { exclude("test/**", "README.md", "fw/**", "vendor/**") }   // no flasher in the app
     into(layout.buildDirectory.dir("generated/webassets/web"))
 }
 tasks.named("preBuild") { dependsOn(copyWeb) }

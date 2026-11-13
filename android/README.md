@@ -11,6 +11,16 @@ Use: both boards on a USB OTG hub (better a powered one: two ESP32 and the TCXO 
 board (plugging a board in also opens the app), the bridge starts by itself, then **Open in Chrome** → Auto connect.
 The bridge runs as a foreground service (notification) while Chrome is in front.
 
+**The page comes from the web**: on every request the app takes the file from the hosted page
+(https://ok1cdj.github.io/ESP32-13cm-NB/, 2 s timeout) and keeps it for offline use; without a connection the kept copy,
+else the copy built into the APK (`PageFiles.kt`). A new page needs no new app, only a change of the bridge does: the
+app's bridge version is in `/bridge.json`, and the page asks for a newer app when it needs one. The switch "Latest page
+from the web" off: only the kept or built-in copy. The page's firmware row (flasher) is hidden here: Chrome on Android has
+no Web Serial; flash from a computer.
+
+**Download**: the APK of each release (tag `v*`, `.github/workflows/android.yml`, signed with the key of ESP32-ATV) is
+on https://github.com/ok1cdj/ESP32-13cm-NB/releases with its SHA-256.
+
 Build (Android SDK in ~/Android/Sdk, a JDK with javac, e.g. Android Studio's):
 
 ```sh

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the launcher icon (adaptive, foreground): an ESP32 module with its meander PCB antenna, radiating;
+     in the style of ESP32-ATV's icon. Drawn on 72 units, inside the 108 dp canvas with a margin for the mask. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="18" android:translateY="18" android:pivotX="36" android:pivotY="36" android:scaleX="0.92" android:scaleY="0.92">
+        <path android:fillColor="#1E5AA8" android:pathData="M23,24h26a2,2 0 0 1 2,2v37a2,2 0 0 1 -2,2h-26a2,2 0 0 1 -2,-2v-37a2,2 0 0 1 2,-2z" />
+        <path android:fillColor="#FFD60A" android:pathData="M19.9,41a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,41a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM19.9,45a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,45a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM19.9,49a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,49a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM19.9,53a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,53a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM19.9,57a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,57a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM19.9,61a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0zM49.9,61a1.1,1.1 0 1 0 2.2,0a1.1,1.1 0 1 0 -2.2,0z" />
+        <path android:strokeColor="#FFD60A" android:strokeWidth="1.6" android:strokeLineJoin="round" android:fillColor="#00000000"
+            android:pathData="M25,34v-6h4v6h4v-6h4v6h4v-6h4v6h2" />
+        <path android:fillColor="#C9CDD3" android:pathData="M26,38h20a1.5,1.5 0 0 1 1.5,1.5v20a1.5,1.5 0 0 1 -1.5,1.5h-20a1.5,1.5 0 0 1 -1.5,-1.5v-20a1.5,1.5 0 0 1 1.5,-1.5z" />
+        <path android:strokeColor="#9AA0A8" android:strokeWidth="0.8" android:fillColor="#00000000"
+            android:pathData="M27.5,40h17a1,1 0 0 1 1,1v17a1,1 0 0 1 -1,1h-17a1,1 0 0 1 -1,-1v-17a1,1 0 0 1 1,-1z" />
+        <path android:strokeColor="#FF9F0A" android:strokeWidth="2.2" android:strokeLineCap="round" android:fillColor="#00000000"
+            android:pathData="M30.5,19a7.5,7.5 0 0 1 11,0M26.5,15a13,13 0 0 1 19,0M22.5,11a18.5,18.5 0 0 1 27,0" />
+    </group>
+</vector>
