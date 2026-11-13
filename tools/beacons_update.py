@@ -57,7 +57,7 @@ def main():
             print(f"new   {call:10} {t['mhz']:.3f} {t['loc']:8} {t['status']} {t['last']}")
             continue
         diff = [f"{k} {o.get(k)} -> {t[k]}" for k in ("mhz", "loc", "status") if o.get(k) != t[k]]
-        if diff and t["last"] > o.get("last", ""):
+        if diff and t["last"] > max(o.get("last", ""), o.get("verified", "")):
             print(f"diff  {call:10} " + ", ".join(diff) + f" (DL0TUD {t['last']}, ours {o.get('src')} {o.get('last', '-')})")
     if a.add and new:
         doc["beacons"] += new

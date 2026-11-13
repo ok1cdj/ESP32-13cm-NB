@@ -1,5 +1,5 @@
 {
- "about": "13 cm beacons of IARU Region 1 (beacon segment 2320.8-2321.0 MHz) for the page's presets. Ours, edited by hand; sources: CRK beacon list (OK), DL0TUD interactive beacon list by DJ5CW (https://dl0tud.tu-dresden.de/beacons/, reception reports; 'last' = latest report). tools/beacons_update.py compares with DL0TUD. status: qrv | qrt.",
+ "about": "13 cm beacons of IARU Region 1 (beacon segment 2320.8-2321.0 MHz) for the page's presets. Ours, edited by hand; sources: CRK beacon list (OK), DL0TUD interactive beacon list by DJ5CW (https://dl0tud.tu-dresden.de/beacons/, reception reports; 'last' = latest report). tools/beacons_update.py compares with DL0TUD. status: qrv | qrt. verified: date our values were checked; tools/beacons_update.py does not flag older DL0TUD reports against it.",
  "beacons": [
   {
    "call": "OK0EA",
@@ -229,7 +229,9 @@
    "mhz": 2320.97,
    "loc": "JN78DU",
    "status": "qrv",
-   "src": "CRK"
+   "src": "CRK",
+   "verified": "2026-11-13",
+   "note": "locator JN78DU confirmed by OK1CDJ (DL0TUD reports JN69DU)"
   }
  ]
 }
