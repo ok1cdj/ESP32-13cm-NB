@@ -485,7 +485,10 @@ async function connectC3(port) {
           if (l) {
             log("C3: " + l); c3.lines.push(l);
             if (l.startsWith("CW ON")) { $("c3info").textContent = l; c3.cfg = parseCwLine(l); applyHint(); }
-            if (l.startsWith("SSB END") || l.startsWith("ERR SSB")) c3.ssbBusy = false;
+            if (l.startsWith("SSB END") || l.startsWith("ERR SSB")) {
+              c3.ssbBusy = false;
+              if (st.tx?.on && st.c3 === c3) { log("TX: the C3 ended its SSB run (no data for 0.5 s)", "err"); stopTx(); }
+            }
             if (/^(CW SENT|CW SEND STOPPED|ERR CW|ERR beacon)/.test(l)) cwSendDone(l);   // ERR CW [INFO] | ...: firmware without SEND
           }
         }
@@ -617,6 +620,44 @@ function c3pending() {
 }
 function applyHint() { $("c3set").classList.toggle("hint", !!st.c3 && c3pending().length > 0); }
 for (const id of ["c3f", "c3amp", "c3text", "c3wpm"]) $(id).addEventListener("input", applyHint);
+
+// ▼ ▲ around a number input, by its step (phones have no spinners); held = repeats, one change event on release.
+// Frequencies keep their decimals (2320.050, not 2320.05), also when typed.
+function stepper(id, dec) {
+  const inp = $(id), wrap = document.createElement("span");
+  wrap.className = "stepper";
+  inp.replaceWith(wrap);
+  const fmt = () => { if (dec !== undefined && inp.value !== "") inp.value = Number(inp.value).toFixed(dec); };
+  const mk = (txt, dir) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = txt; b.tabIndex = -1;
+    b.setAttribute("aria-label", dir > 0 ? "up" : "down");
+    let timer = null;
+    const step = () => { dir > 0 ? inp.stepUp() : inp.stepDown(); fmt(); inp.dispatchEvent(new Event("input")); };
+    const end = () => {
+      if (timer === null) return;
+      clearTimeout(timer); timer = null;
+      inp.dispatchEvent(new Event("change"));
+    };
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (inp.disabled || timer !== null) return;
+      b.setPointerCapture(e.pointerId);
+      step();
+      const rep = (ms) => { timer = setTimeout(() => { step(); rep(70); }, ms); };
+      rep(450);
+    });
+    for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(ev, end);
+    b.addEventListener("contextmenu", (e) => e.preventDefault());
+    return b;
+  };
+  wrap.append(mk("▼", -1), inp, mk("▲", 1));
+  inp.addEventListener("change", fmt);
+  fmt();
+}
+stepper("center", 3);
+stepper("c3f", 3);
+stepper("c3amp");
 /** Sends what differs from the C3's settings; false when the beacon text is not valid Morse. */
 async function applyC3() {
   const text = $("c3text").value.trim().toUpperCase();
@@ -782,6 +823,43 @@ async function startTx() {
     for (let i = 0; i < 40 && st.c3.ssbBusy; i++) await new Promise((r) => setTimeout(r, 100));
     if (st.c3.ssbBusy) throw new Error("the C3 is still in its last SSB run");
     if (released()) return;
+    // the source is ready before SSB ON: the C3 ends its run 0.5 s without data (3 s before the first), and the microphone
+    // (its permission prompt, the worklet) or a file can take longer than that
+    const FS = 50000;                                         // the C3's SSB rate (checked against its OK line)
+    let tones = null, audio = null, pending = [];
+    if (src === "tone" || src === "two") {
+      tones = new TestTones(FS, src === "tone" ? [Number($("txt1").value)] : [Number($("txt1").value), Number($("txt2").value)]);
+    } else {
+      tx.chain = new TxChain(FS, { gainDb: Number($("txgain").value) });
+      tx.ctx = new AudioContext({ sampleRate: FS });
+      if (src === "mic") {
+        tx.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+        await tx.ctx.audioWorklet.addModule("audio-tx-worklet.js");
+        if (released()) { tx.stream.getTracks().forEach((t) => t.stop()); tx.ctx.close().catch(() => {}); return; }   // let go meanwhile
+        tx.node = new AudioWorkletNode(tx.ctx, "tx-capture", { numberOfOutputs: 0 });
+        tx.ctx.createMediaStreamSource(tx.stream).connect(tx.node);
+        tx.ctx.resume();                                      // not awaited: without a user gesture it would wait forever
+        let acc = [], n = 0;
+        tx.node.port.onmessage = (e) => {
+          if (!tx.running) return;
+          acc.push(e.data); n += e.data.length;
+          if (n < 1000) return;
+          const a = new Float32Array(n); let o = 0; for (const c of acc) { a.set(c, o); o += c.length; } acc = []; n = 0;
+          const iq = tx.chain.process(a);
+          if (!tx.on) { pending = [iq]; return; }               // before OK SSB: only the newest chunk is kept
+          for (const p of pending.splice(0)) sendPairs(tx, p);
+          const fill = st.c3.fill || 0;
+          if (fill > 7000) return;                            // the ring is full: drop, so that the latency stays low
+          if (fill < 1000) sendPairs(tx, new Float32Array(2 * 500));
+          sendPairs(tx, iq);
+        };
+      } else {
+        const f = $("txfile").files[0];
+        if (!f) throw new Error("choose an audio file first");
+        audio = (await tx.ctx.decodeAudioData(await f.arrayBuffer())).getChannelData(0);
+      }
+    }
+    if (released()) { tx.ctx?.close().catch(() => {}); return; }
     await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`); await new Promise((r) => setTimeout(r, 250));
     await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`); await new Promise((r) => setTimeout(r, 250));
     if (released()) return;
@@ -791,44 +869,20 @@ async function startTx() {
     let ok = null;
     for (let i = 0; i < 30 && !ok; i++) { await new Promise((r) => setTimeout(r, 100)); ok = st.c3.lines.find((l) => /^(OK SSB|ERR)/.test(l)); }
     if (!ok || ok.startsWith("ERR")) throw new Error(ok || "no OK SSB from the C3");
-    const fs = Number((/RATE (\d+)/.exec(ok) || [0, 50000])[1]);
+    const fs = Number((/RATE (\d+)/.exec(ok) || [0, FS])[1]);
+    if (fs !== FS) throw new Error(`the C3 runs SSB at ${fs} S/s, the page at ${FS}`);
     if (released()) { tx.running = true; sendPairs(tx, new Float32Array(2 * 500)); tx.running = false; return; }   // a short tap: 10 ms, then off
     sendPairs(tx, new Float32Array(2 * 2000));                   // 40 ms of silence first: no underrun at the start
-    if (src === "tone" || src === "two") {
-      const tones = new TestTones(fs, src === "tone" ? [Number($("txt1").value)] : [Number($("txt1").value), Number($("txt2").value)]);
+    tx.on = true;
+    if (tones) {
       tx.pump = setInterval(() => { if (tx.running && (st.c3.fill || 0) < TX_FILL) sendPairs(tx, tones.next(1250)); }, 10);
-    } else {
-      tx.chain = new TxChain(fs, { gainDb: Number($("txgain").value) });
-      tx.ctx = new AudioContext({ sampleRate: fs });
-      if (src === "mic") {
-        tx.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-        await tx.ctx.audioWorklet.addModule("audio-tx-worklet.js");
-        if (released()) { tx.stream.getTracks().forEach((t) => t.stop()); tx.ctx.close().catch(() => {}); return; }
-        tx.node = new AudioWorkletNode(tx.ctx, "tx-capture", { numberOfOutputs: 0 });
-        tx.ctx.createMediaStreamSource(tx.stream).connect(tx.node);
-        let acc = [], n = 0;
-        tx.node.port.onmessage = (e) => {
-          if (!tx.running) return;
-          acc.push(e.data); n += e.data.length;
-          if (n < 1000) return;
-          const a = new Float32Array(n); let o = 0; for (const c of acc) { a.set(c, o); o += c.length; } acc = []; n = 0;
-          const iq = tx.chain.process(a), fill = st.c3.fill || 0;
-          if (fill > 7000) return;                            // the ring is full: drop, so that the latency stays low
-          if (fill < 1000) sendPairs(tx, new Float32Array(2 * 500));
-          sendPairs(tx, iq);
-        };
-      } else {
-        const f = $("txfile").files[0];
-        if (!f) throw new Error("choose an audio file first");
-        const audio = (await tx.ctx.decodeAudioData(await f.arrayBuffer())).getChannelData(0);
-        if (released()) { tx.ctx.close().catch(() => {}); return; }
-        let pos = 0;
-        tx.pump = setInterval(() => {
-          if (!tx.running || (st.c3.fill || 0) >= TX_FILL) return;
-          if (pos >= audio.length) { stopTx(); return; }
-          sendPairs(tx, tx.chain.process(audio.subarray(pos, pos + 1250))); pos += 1250;
-        }, 10);
-      }
+    } else if (audio) {
+      let pos = 0;
+      tx.pump = setInterval(() => {
+        if (!tx.running || (st.c3.fill || 0) >= TX_FILL) return;
+        if (pos >= audio.length) { stopTx(); return; }
+        sendPairs(tx, tx.chain.process(audio.subarray(pos, pos + 1250))); pos += 1250;
+      }, 10);
     }
     if (released()) { clearInterval(tx.pump); return; }
     tx.status = setInterval(() => {
@@ -858,8 +912,11 @@ function stopTx() {
 }
 
 $("txbtn").onclick = () => (st.tx ? stopTx() : startTx());
-$("ptt").addEventListener("pointerdown", (e) => { e.preventDefault(); startTx(); });
-for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("ptt").addEventListener(ev, () => { if (st.tx) stopTx(); });
+// held = transmit; the pointer is captured, so a finger sliding a little off the button does not end it, and a long touch
+// does not open Android's copy menu
+$("ptt").addEventListener("pointerdown", (e) => { e.preventDefault(); $("ptt").setPointerCapture(e.pointerId); startTx(); });
+for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) $("ptt").addEventListener(ev, () => { if (st.tx) stopTx(); });
+$("ptt").addEventListener("contextmenu", (e) => e.preventDefault());
 // Tab is the PTT key: held = transmit (its focus moving is given up on this page; the key repeat is ignored)
 let tabPtt = false;
 window.addEventListener("keydown", (e) => {

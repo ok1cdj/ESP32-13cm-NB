@@ -12,6 +12,7 @@
 <title>NB 13 cm transceiver</title>
 <style>
   :root { --bg: #15171a; --panel: #1f2226; --text: #d8dadd; --dim: #8a9097; --acc: #ff9f0a; --line: #33373c; --ok: #4cd964; --err: #ff453a; }
+  :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
   header { padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; border-bottom: 1px solid var(--line); }
@@ -30,6 +31,16 @@
   label { max-width: 100%; }
   button { cursor: pointer; }
   button.icon { padding: 3px 6px; line-height: 0; }
+  /* ▼ ▲ next to a number (app.js stepper): the same on a computer and a phone, held = repeats; no native spinners */
+  .stepper { display: inline-flex; }
+  .stepper input { border-radius: 0; text-align: right; -moz-appearance: textfield; appearance: textfield; }
+  .stepper input::-webkit-inner-spin-button, .stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper button { padding: 4px 9px; color: var(--acc); }
+  .stepper button:first-child { border-radius: 4px 0 0 4px; border-right: 0; }
+  .stepper button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+  /* held buttons: no text selection, no copy menu, no scrolling on a long touch (Android) */
+  #ptt, .stepper button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
+  #ptt { padding: 8px 18px; }
   button.on { border-color: var(--acc); color: var(--acc); }
   button.hint { border-color: var(--acc); background: #4a3200; animation: hint 1.2s ease-in-out infinite alternate; }
   @keyframes hint { to { background: #2a2e33; } }
