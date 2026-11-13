@@ -16,8 +16,8 @@ Kmitočet nosné vůči nastavené hodnotě −0,3 Hz (C3 a S3 na společném TC
 ## 1. Zapojení
 
 ```
-deska TCXO 40 MHz ──J1──> XTAL_P XIAO ESP32-C3 (7C:4F:AD:D1:B4:0C) ──U.FL──> útlum 30 dB ──> tinySA Ultra+ ZS-407
-                  ──J2──> XTAL_P XIAO ESP32-S3 (A0:F2:62:EA:C5:70), keramická anténa (příjem jen přeslechem)
+deska TCXO 40 MHz ──J1──> XTAL_P ESP32-C3 SuperMini Plus (7C:4F:AD:D1:B4:0C) ──U.FL──> útlum 30 dB ──> tinySA Ultra+ ZS-407
+                  ──J2──> XTAL_P ESP32-S3-Zero (A0:F2:62:EA:C5:70), keramická anténa (příjem jen přeslechem)
                   ──J3──  testovací odbočka −46 dB (měření TCXO přímo tinySA)
 všechno přes jeden USB hub PC
 ```

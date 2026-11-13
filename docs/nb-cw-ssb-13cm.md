@@ -17,6 +17,7 @@ na stejném principu jako DATV v ESP32-ATV:
 
 - **TX:** XIAO ESP32-C3 (nebo C3 SuperMini), I/Q DAC řízený z CPU (trik SP8ESA).
 - **RX:** XIAO ESP32-S3 (Plus), surová I/Q přes USB (ESP-SDR / ESP32-DATV-RX).
+- *Pozn. 11/2026: na TCXO jsou nakonec ESP32-C3 SuperMini Plus a Waveshare ESP32-S3-Zero (bez stínicího krytu), viz kap. Úprava desek.*
 - **Ovládání:** nejdřív **webová aplikace na PC** (Web Serial, Chrome/Edge) jako test bench
   a referenční UI; Android aplikace zatím ne (později ze stejného jádra přes NDK).
 - **Módy:** CW, SSB, OOK48.
@@ -64,6 +65,7 @@ TCXO ±0,5 ppm ≈ ±1,2 kHz na 2320 MHz (statická chyba, doladitelná), drift 
 
 - **XIAO C3 i XIAO S3 mají kovový stínicí kryt** – nutné ho sundat horkým vzduchem
   (a nechat dole, nebo počítat s horším stíněním).
+- **Použito nakonec: ESP32-C3 SuperMini Plus a Waveshare ESP32-S3-Zero** – bez krytu, krystal přístupný.
 - **C3 SuperMini nemá kryt** – nejsnazší platforma pro první test (SP8ESA na něm vyvíjel).
   Chybí U.FL, keramickou anténu lze nahradit pigtailem.
 - Footprint krystalu nejde použít přímo (krystal má na dvou padech zem, TCXO potřebuje napájení)

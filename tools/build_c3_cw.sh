@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the C3 transmitter firmware from fw/ESP32-DATV-SA (local clone of the ESP32-DATV-SA fork, PolyForm Noncommercial,
-# kept out of this repository by .gitignore) for the XIAO ESP32-C3 and optionally flashes it.
+# kept out of this repository by .gitignore) for the ESP32-C3 (board config XIAO C3; runs on the C3 SuperMini Plus too) and optionally flashes it.
 # Without the built-in DVB-S2 test card: after power-up the C3 transmits nothing until it gets a command.
 #   . ~/esp/esp-idf-v6.1/export.sh
 #   tools/build_c3_cw.sh [PORT|-]        (- or no PORT: build only)

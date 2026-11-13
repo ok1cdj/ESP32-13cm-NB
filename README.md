@@ -1,7 +1,7 @@
-# ESP32 13 cm narrowband – CW / SSB on 2320 MHz with two XIAO boards
+# ESP32 13 cm narrowband – CW / SSB on 2320 MHz with two ESP32 boards
 
-A narrowband station for the 13 cm band (2320.0–2320.2 MHz, beacons at 2320.8–2321.0) built from two Seeed XIAO
-boards on one 40 MHz TCXO: the **ESP32-C3 transmits** (I/Q DAC driven by the CPU, the trick of SP8ESA), the
+A narrowband station for the 13 cm band (2320.0–2320.2 MHz, beacons at 2320.8–2321.0) built from two small
+ESP32-C3 / ESP32-S3 boards (ESP32-C3 SuperMini Plus, Waveshare ESP32-S3-Zero) on one 40 MHz TCXO: the **ESP32-C3 transmits** (I/Q DAC driven by the CPU, the trick of SP8ESA), the
 **ESP32-S3 receives** (raw I/Q over USB, ESP-SDR firmware). Control and DSP run in a web page on a PC, or on an Android
 phone through a small USB bridge app. Companion of [ESP32-ATV](https://github.com/ok1cdj/ESP32-ATV) (DATV on the same
 boards).
@@ -9,9 +9,9 @@ boards).
 > **Status: experimental, work in progress.** It works on one bench (OK1CDJ). The measurements below are from that
 > bench, not from a batch of boards. Expect to read the docs and to change things. Questions and reports are welcome.
 
-**Without a TCXO this does not work.** A stock XIAO C3 drifts about 6.5 kHz in the first minute of transmitting and
-300–450 Hz per 10 s over after that (measured, [`docs/s3-trx/report.md`](docs/s3-trx/report.md), step 5). The crystal
-has to be replaced by an external 40 MHz TCXO, see [Hardware](#hardware).
+**Without a TCXO this does not work.** A stock C3 board (XIAO C3, own crystal) drifts about 6.5 kHz in the
+first minute of transmitting and 300–450 Hz per 10 s over after that (measured,
+[`docs/s3-trx/report.md`](docs/s3-trx/report.md), step 5). The crystal has to be replaced by an external 40 MHz TCXO, see [Hardware](#hardware).
 
 ## What works
 
@@ -41,14 +41,18 @@ Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21
 
 | Part | Status |
 |---|---|
-| Seeed XIAO ESP32-C3 (TX) and XIAO ESP32-S3 (Plus) (RX), U.FL antenna connector | in use |
+| ESP32-C3 SuperMini Plus (TX) and Waveshare ESP32-S3-Zero (RX), RF output to coax | in use |
 | [**TCXO 40 MHz board**](hw/tcxo-40m/README.md), one TCXO for both boards (outputs to XTAL_P of the C3 and the S3, a −46 dB test tap) | **built and working** |
 | [RX/TX antenna switch](hw/tr-switch/README.md) (HMC8038, interlock for the PA) | built, **not tested or measured yet** |
 | PA, LNA | not designed |
 
-Both boards come with Gerbers, BOM and pick & place for JLCPCB in `hw/*/vyroba/` (docs in Czech).
-Converting a XIAO to the TCXO means removing its crystal (on the S3 also the shield can) and feeding the TCXO to the
-XTAL_P pin through a U.FL pigtail. It is fine work on a small module; do it only if you can.
+Both boards come with Gerbers, BOM and pick & place for JLCPCB in `hw/*/vyroba/` (README in English and Czech,
+the switch's design report in Czech). A photo of the prototype will follow.
+
+Converting a board to the TCXO means removing its crystal and the load capacitors and feeding the TCXO to the XTAL_P
+pin through a U.FL pigtail. These two boards are used because they have no shield can over the crystal (the XIAO
+have one; XIAO boards served only for the plain-crystal and GPS tests). It is fine work on a small module; do it
+only if you can. A detailed step-by-step description will follow.
 
 Sharing one TCXO between TX and RX makes them coherent: the frequency difference between them is only the PLL rounding,
 which the software computes, so the received beacon sits on the exact Hz.

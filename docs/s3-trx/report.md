@@ -591,4 +591,4 @@ Nosná −2,6 až −3,7 dBm. Výchozí chyba krystalu (deska v klidu) −0,68 p
 - **Stabilizace neupraveného krystalu se nedělá.** Drift po zaklíčování je 0,1–0,3 ppm/s a PPS ho nedohoní.
   FT8/OOK48 by nešly vůbec.
 - **GPS PPS později jen pro absolutní kmitočet:** varianta A, S3 měří společné TCXO a host opraví C3.
-- Deska TCXO je hotová. Pro ostatní je problém úprava XIAO, ne deska samotná.
+- Deska TCXO je hotová. Pro ostatní je problém úprava modulu (C3 SuperMini Plus / S3-Zero), ne deska samotná.
