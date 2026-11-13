@@ -62,6 +62,8 @@ every push to `main`). There is no bridge, the page uses Web Serial (Chrome / Ed
   Bench 2026-11-10: tone 1 kHz at F + 995 Hz on the S3 in USB mode, no underrun while transmitting; two tones equal.
   Use headphones with the microphone (the receiver's audio would feed back).
 
+- **CW (row CW)**: a text sent once in Morse by the C3 (`CW SEND`, firmware cw-beacon 9dff5f6 or later) at F, AMP and
+  WPM; Enter sends, the button waits for `CW SENT`, CW OFF stops it, a running beacon starts again afterwards.
 - **Firmware (row FW)**: **Flash C3 (TX)** / **Flash S3 (RX)** write the images in `fw/c3`, `fw/s3` through ESP Web Tools
   (`vendor/esp-web-tools`, 10.5.2, Apache-2.0, served from here: works offline). The dialog offers to erase the flash
   first (the C3 then forgets its NVS settings). Disconnect the board on the page before flashing. `tools/fw_bundle.sh`

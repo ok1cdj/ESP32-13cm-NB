@@ -441,7 +441,8 @@ function haveCall() {
 function disconnectedC3() {
   st.c3 = null;
   $("c3conn").textContent = "Connect C3"; $("c3info").textContent = "not connected";
-  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = true;
+  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn", "cwsend"]) $(id).disabled = true;
+  $("cwsend").classList.remove("on"); $("cwinfo").textContent = "";
   if (st.tx) stopTx();
   calHint();
 }
@@ -485,6 +486,7 @@ async function connectC3(port) {
             log("C3: " + l); c3.lines.push(l);
             if (l.startsWith("CW ON")) { $("c3info").textContent = l; c3.cfg = parseCwLine(l); applyHint(); }
             if (l.startsWith("SSB END") || l.startsWith("ERR SSB")) c3.ssbBusy = false;
+            if (/^(CW SENT|CW SEND STOPPED|ERR CW|ERR beacon)/.test(l)) cwSendDone(l);   // ERR CW [INFO] | ...: firmware without SEND
           }
         }
         buf = buf.slice(p);
@@ -500,7 +502,7 @@ async function connectC3(port) {
   }
   st.c3 = c3;
   $("c3conn").textContent = "Disconnect C3";
-  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn"]) $(id).disabled = false;
+  for (const id of ["cwon", "cwoff", "c3set", "dccal", "ptt", "txbtn", "cwsend"]) $(id).disabled = false;
   calHint();
 }
 
@@ -599,8 +601,8 @@ async function c3send(line) {
 // F, AMP and the beacon text of the C3 row go to the C3 with Apply, and before CW ON. The C3 answers every CW command with its
 // settings ("CW ON 0 ... F <kHz> ... AMP n ... TEXT ..."): Apply lights up while the row differs from them.
 function parseCwLine(l) {
-  const m = /\bF ([\d.]+) .*\bAMP (\d+)\b.*\bTEXT (.*)$/.exec(l);
-  return m ? { fkhz: Number(m[1]), amp: Number(m[2]), text: m[3].trim() } : null;
+  const m = /\bF ([\d.]+) .*\bAMP (\d+) WPM (\d+)\b.*\bTEXT (.*)$/.exec(l);
+  return m ? { fkhz: Number(m[1]), amp: Number(m[2]), wpm: Number(m[3]), text: m[4].trim() } : null;
 }
 function c3pending() {
   const cfg = st.c3?.cfg, text = $("c3text").value.trim().toUpperCase();
@@ -608,11 +610,13 @@ function c3pending() {
   const cmds = [];
   if (text && text !== cfg?.text) cmds.push(`CW SET TEXT ${text}`);
   if (amp !== cfg?.amp) cmds.push(`CW SET AMP ${amp}`);
+  const wpm = Math.round(Number($("c3wpm").value));
+  if (wpm !== cfg?.wpm) cmds.push(`CW SET WPM ${wpm}`);
   if (!cfg || Math.abs(fkhz - cfg.fkhz) > 0.0005) cmds.push(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
   return cmds;
 }
 function applyHint() { $("c3set").classList.toggle("hint", !!st.c3 && c3pending().length > 0); }
-for (const id of ["c3f", "c3amp", "c3text"]) $(id).addEventListener("input", applyHint);
+for (const id of ["c3f", "c3amp", "c3text", "c3wpm"]) $(id).addEventListener("input", applyHint);
 /** Sends what differs from the C3's settings; false when the beacon text is not valid Morse. */
 async function applyC3() {
   const text = $("c3text").value.trim().toUpperCase();
@@ -625,6 +629,26 @@ async function applyC3() {
 }
 $("cwon").onclick = async () => { if (haveCall() && await applyC3()) await c3send("CW ON"); };
 $("cwoff").onclick = () => c3send("CW OFF");
+
+// CW SEND: the C3 keys the text once (firmware cw-beacon) and answers CW SENT, or CW SEND STOPPED when a command cut it
+// short (CW OFF stops it). One text at a time.
+async function cwSend() {
+  const text = $("cwtext").value.trim().toUpperCase();
+  if (!st.c3 || st.c3.sending || !text) return;
+  if (!MORSE_RE.test(text)) { log("CW text: only A-Z 0-9 / ? . , = - + and spaces", "err"); return; }
+  if (!haveCall() || !(await applyC3())) return;
+  st.c3.sending = true;
+  $("cwsend").disabled = true; $("cwsend").classList.add("on"); $("cwinfo").textContent = "sending…";
+  await c3send(`CW SEND ${text}`);
+}
+function cwSendDone(l) {
+  if (!st.c3?.sending) return;
+  st.c3.sending = false;
+  $("cwsend").disabled = false; $("cwsend").classList.remove("on");
+  $("cwinfo").textContent = l.startsWith("CW SENT") ? "sent" : l;
+}
+$("cwsend").onclick = cwSend;
+$("cwtext").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); cwSend(); } });
 $("c3set").onclick = () => { if (!$("c3text").value.trim() || haveCall()) applyC3(); };   // F and AMP alone do not transmit
 
 /* ------------------------------------------------------------ DC calibration of the C3 through the S3

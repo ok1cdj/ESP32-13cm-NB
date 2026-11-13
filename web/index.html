@@ -24,6 +24,7 @@
   input[type=number] { width: 8em; }
   input.w5 { width: 5em; }
   input.w8 { width: 8em; text-transform: uppercase; }
+  input.wide { width: 22em; max-width: 100%; text-transform: uppercase; }
   select { max-width: 100%; min-width: 0; }
   label { max-width: 100%; }
   button { cursor: pointer; }
@@ -123,6 +124,13 @@
     <button id="c3set" disabled>Apply</button>
     <button id="dccal" disabled title="The C3 sends its LO leakage alone (BDC TEST); the S3 measures it through crosstalk and the DC correction is searched for its minimum. Valid until the C3 resets. Shown with the S3's ceramic antenna next to the C3 only.">Calibrate DC (S3)</button>
     <span class="stat" title="Measured 2026-11-10 with the tinySA (±2 dB): linear to AMP 100, P1dB near AMP 150, at most about +12.5 dBm">dBm at the C3's connector, measured</span>
+  </div>
+  <div class="row">
+    <b>CW</b>
+    <label>text <input id="cwtext" class="wide" maxlength="64" spellcheck="false" autocapitalize="characters" placeholder="CQ DE … K" title="Sent once in Morse by the C3 (CW SEND) at F, AMP, WPM: A-Z 0-9 / ? . , = - + and spaces, at most 64; Enter sends"></label>
+    <label>WPM <input type="number" id="c3wpm" class="w5" min="5" max="60" value="15"></label>
+    <button id="cwsend" disabled>Send</button>
+    <span class="stat" id="cwinfo"></span>
   </div>
   <div class="row">
     <b>TX</b>

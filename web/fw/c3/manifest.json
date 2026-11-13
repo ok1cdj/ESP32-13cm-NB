@@ -1,6 +1,6 @@
 {
   "name": "NB 13 cm TX: ESP32-C3 CW/SSB (ESP32-DATV-SA cw-beacon)",
-  "version": "efc2f8d",
+  "version": "9dff5f6",
   "new_install_prompt_erase": true,
   "builds": [
     {
