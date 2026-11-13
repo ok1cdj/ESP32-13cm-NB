@@ -109,8 +109,13 @@ from the analyser. Expect about −40 to −45 dBm. Frequency and harmonics can 
 
 ## The modules (ESP32-C3 SuperMini Plus, ESP32-S3-Zero)
 
-> A detailed step-by-step description of the modification with photos will follow, and a photo of the whole prototype
-> (TCXO board, both modules and a USB hub; the hub will be published separately as a project of its own).
+![Modules wired to the TCXO board](foto/modules.jpg)
+
+The prototype: J2 feeds the C3, J1 the S3 (both outputs are the same), J3 is free. Each module's RF output goes on a
+pigtail to an SMA: the C3 has its own U.FL, the S3 a coax soldered to the antenna pad. Whole prototype with the USB hub
+(published separately): [`foto/prototype.jpg`](foto/prototype.jpg).
+
+> A detailed step-by-step description of the modification will follow.
 
 - Used: an **ESP32-C3 SuperMini Plus** (from an e-shop, maker unknown) and a **Waveshare ESP32-S3-Zero**. They have no
   shield can, the crystal is accessible. The **XIAO** boards have it under a can that would have to come off with hot
@@ -125,7 +130,7 @@ from the analyser. Expect about −40 to −45 dBm. Frequency and harmonics can 
 
 ## Verified on the bench (2026-11-09)
 
-One board: J1 → XTAL_P of the ESP32-C3 SuperMini Plus, J2 → XTAL_P of the ESP32-S3-Zero, J3 → tinySA Ultra+.
+One board: J2 → XTAL_P of the ESP32-C3 SuperMini Plus, J1 → XTAL_P of the ESP32-S3-Zero (as in the photo), J3 → tinySA Ultra+.
 Details: [`../../docs/nb-cw-krok1.md`](../../docs/nb-cw-krok1.md), section 4 (Czech).
 
 | | |

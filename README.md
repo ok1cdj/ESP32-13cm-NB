@@ -47,7 +47,12 @@ Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21
 | PA, LNA | not designed |
 
 Both boards come with Gerbers, BOM and pick & place for JLCPCB in `hw/*/vyroba/` (README in English and Czech,
-the switch's design report in Czech). A photo of the prototype will follow.
+the switch's design report in Czech).
+
+<img src="hw/tcxo-40m/foto/prototype.jpg" width="420" alt="Prototype: C3 SuperMini Plus, TCXO board, S3-Zero, USB hub">
+
+The prototype: TX and RX SMA at the top, the two modules and the TCXO board, a USB hub at the bottom (the hub will be
+published separately). Close-up: [`hw/tcxo-40m`](hw/tcxo-40m/README.md#the-modules-esp32-c3-supermini-plus-esp32-s3-zero).
 
 Converting a board to the TCXO means removing its crystal and the load capacitors and feeding the TCXO to the XTAL_P
 pin through a U.FL pigtail. These two boards are used because they have no shield can over the crystal (the XIAO

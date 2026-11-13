@@ -2,3 +2,4 @@ fw/
 build/
 __pycache__/
 notes/
+tmp/

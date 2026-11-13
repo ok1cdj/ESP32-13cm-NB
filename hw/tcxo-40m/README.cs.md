@@ -111,8 +111,13 @@ ale měř sondou přímo na padu.
 
 ## K modulu (ESP32-C3 SuperMini Plus, ESP32-S3-Zero)
 
-> Podrobný postup úpravy s fotkami bude doplněn, stejně jako foto celého prototypu (deska TCXO, oba moduly a USB hub;
-> hub se zveřejní zvlášť jako samostatný projekt).
+![Moduly napojené na desku TCXO](foto/modules.jpg)
+
+Prototyp: J2 taktuje C3, J1 taktuje S3 (oba výstupy jsou stejné), J3 je volný. RF výstup každého modulu vede pigtailem
+na SMA: C3 má vlastní U.FL, u S3 je koax připájený na pad antény. Celý prototyp s USB hubem (ten se zveřejní zvlášť):
+[`foto/prototype.jpg`](foto/prototype.jpg).
+
+> Podrobný postup úpravy bude doplněn.
 
 - Použité jsou **ESP32-C3 SuperMini Plus** (z e-shopu, výrobce neuveden) a **Waveshare ESP32-S3-Zero**: nemají stínicí
   kryt, krystal je přístupný. **XIAO** ho mají pod krytem, který by se musel sundat horkým vzduchem; na XIAO se dělal
@@ -126,7 +131,7 @@ ale měř sondou přímo na padu.
 
 ## Ověřeno na stole (9. 11. 2026)
 
-Jedna deska, J1 → XTAL_P ESP32-C3 SuperMini Plus, J2 → XTAL_P ESP32-S3-Zero, J3 → tinySA Ultra+.
+Jedna deska, J2 → XTAL_P ESP32-C3 SuperMini Plus, J1 → XTAL_P ESP32-S3-Zero (jako na fotce), J3 → tinySA Ultra+.
 Podrobnosti: [`../../docs/nb-cw-krok1.md`](../../docs/nb-cw-krok1.md), kap. 4.
 
 | | |
