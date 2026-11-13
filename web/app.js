@@ -739,7 +739,7 @@ window.addEventListener("keyup", (e) => {
 });
 window.addEventListener("blur", () => { if (tabPtt) { tabPtt = false; if (st.tx) stopTx(); } });   // the window lost the key
 
-bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on http://localhost.", "err"); });
+bridgeReady.then((b) => { if (!b && !("serial" in navigator)) log("Without the bridge (tools/web_bridge.py) this needs Web Serial: Chrome or Edge on a computer (https or http://localhost).", "err"); });
 
 // ?demo: no board; a synthetic stream (noise and a keyed tone 1 kHz above the centre) to check the page and the audio
 if (new URLSearchParams(location.search).has("demo")) {

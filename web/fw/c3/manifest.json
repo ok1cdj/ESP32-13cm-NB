@@ -1,0 +1,15 @@
+{
+  "name": "NB 13 cm TX: ESP32-C3 CW/SSB (ESP32-DATV-SA cw-beacon)",
+  "version": "efc2f8d",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        { "path": "bootloader.bin", "offset": 0 },
+        { "path": "partition-table.bin", "offset": 32768 },
+        { "path": "esp32_datv.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}

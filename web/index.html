@@ -2,7 +2,8 @@
 <!-- NB 13 cm transceiver: receive on the ESP32-S3 (ESP-SDR IQS firmware: spectrum, waterfall, CW / USB audio), transmit on the
      ESP32-C3 (CW beacon, USB from the microphone, a file or test tones).
      tools/web_bridge.py serves it and passes the boards over WebSocket (any browser): http://localhost:8080
-     ?webserial or tools/web_serve.py: Web Serial (Chrome / Edge on http://localhost). -->
+     ?webserial or tools/web_serve.py: Web Serial (Chrome / Edge on http://localhost).
+     Hosted on https (GitHub Pages): Web Serial, no bridge. Firmware row: ESP Web Tools (vendor/) with the images in fw/. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -29,6 +30,7 @@
   button:disabled { opacity: .45; cursor: default; }
   .stat { font: 12px ui-monospace, monospace; color: var(--dim); overflow-wrap: anywhere; }
   .ok { color: var(--ok); } .err { color: var(--err); }
+  a { color: var(--acc); }
   canvas { width: 100%; display: block; background: #000; }
   #spec { height: 220px; border-radius: 4px 4px 0 0; cursor: crosshair; }
   #axis { height: 26px; background: #101214; }
@@ -124,8 +126,19 @@
     <label>out <div class="meter"><div id="txmeter"></div></div></label>
     <span class="stat" id="txinfo"></span>
   </div>
+  <div class="row">
+    <b>FW</b>
+    <esp-web-install-button manifest="fw/c3/manifest.json"><button slot="activate">Flash C3 (TX)</button>
+      <span slot="unsupported" class="stat err">flashing needs Web Serial (Chrome / Edge on a computer)</span></esp-web-install-button>
+    <esp-web-install-button manifest="fw/s3/manifest.json"><button slot="activate">Flash S3 (RX)</button>
+      <span slot="unsupported"></span></esp-web-install-button>
+    <span class="stat">For boards on the TCXO. Disconnect the board on this page first.
+      C3: <a href="fw/c3/README.md">ESP32-DATV-SA cw-beacon</a> (PolyForm Noncommercial),
+      S3: <a href="fw/s3/README.md">ESP-SDR</a> (GPL-3.0)</span>
+  </div>
   <div id="log"></div>
 </main>
 <script type="module" src="app.js"></script>
+<script type="module" src="vendor/esp-web-tools/install-button.js"></script>
 </body>
 </html>

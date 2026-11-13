@@ -10,6 +10,9 @@ tools/web_serve.py                   # the page alone, for Web Serial (no cachin
 node web/test/test.mjs               # tests of the protocol and DSP (recording build/rx/iqs_cw.cf32)
 ```
 
+Hosted: **https://ok1cdj.github.io/ESP32-13cm-NB/** (GitHub Pages, `.github/workflows/pages.yml` publishes this folder on
+every push to `main`). There is no bridge, the page uses Web Serial (Chrome / Edge on a computer).
+
 | URL | Boards through |
 |---|---|
 | http://localhost:8080 | the bridge (WebSocket, any browser, no port chooser; ports from `tools/nbports.py`) |
@@ -50,6 +53,12 @@ node web/test/test.mjs               # tests of the protocol and DSP (recording 
   is the PTT: the C3 goes off 0.5 s after the last data. F and AMP are the C3 row's (AMP ≤ 50–100 for linear SSB).
   Bench 2026-11-10: tone 1 kHz at F + 995 Hz on the S3 in USB mode, no underrun while transmitting; two tones equal.
   Use headphones with the microphone (the receiver's audio would feed back).
+
+- **Firmware (row FW)**: **Flash C3 (TX)** / **Flash S3 (RX)** write the images in `fw/c3`, `fw/s3` through ESP Web Tools
+  (`vendor/esp-web-tools`, 10.5.2, Apache-2.0, served from here: works offline). The dialog offers to erase the flash
+  first (the C3 then forgets its NVS settings). Disconnect the board on the page before flashing. `tools/fw_bundle.sh`
+  refreshes the images from the C3 build and the ESP-SDR release zip. On Linux the user needs access to the port
+  (group `uucp` or `dialout`).
 
 `iqs.js` (protocol, no DOM) and `dsp.js` (FFT, demodulator, TX chain) are shared by the page and the Node tests.
 

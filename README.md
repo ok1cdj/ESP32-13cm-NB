@@ -1,5 +1,8 @@
 # ESP32 13 cm narrowband – CW / SSB on 2320 MHz with two ESP32 boards
 
+[![Pages](https://github.com/ok1cdj/ESP32-13cm-NB/actions/workflows/pages.yml/badge.svg)](https://ok1cdj.github.io/ESP32-13cm-NB/)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Become%20a%20Supporter-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/ok1cdj)
+
 A narrowband station for the 13 cm band (2320.0–2320.2 MHz, beacons at 2320.8–2321.0) built from two small
 ESP32-C3 / ESP32-S3 boards (ESP32-C3 SuperMini Plus, Waveshare ESP32-S3-Zero) on one 40 MHz TCXO: the **ESP32-C3 transmits** (I/Q DAC driven by the CPU, the trick of SP8ESA), the
 **ESP32-S3 receives** (raw I/Q over USB, ESP-SDR firmware). Control and DSP run in a web page on a PC, or on an Android
@@ -9,9 +12,16 @@ boards).
 > **Status: experimental, work in progress.** It works on one bench (OK1CDJ). The measurements below are from that
 > bench, not from a batch of boards. Expect to read the docs and to change things. Questions and reports are welcome.
 
-> **For licensed radio amateurs.** Transmitting on 13 cm needs an amateur radio licence. Keep to the IARU Region 1
-> band plan and your national rules: narrowband modes around 2320.0–2320.2 MHz, never transmit in the beacon segment
-> (2320.8–2321.0 MHz) or on a beacon's frequency.
+> [!WARNING]
+> **This equipment transmits on the 13 cm amateur radio band (2320 MHz). Using it requires an amateur radio licence.**
+> Transmit only with your own callsign, on frequencies and at power levels your licence and national band plan allow:
+> narrowband modes around 2320.0–2320.2 MHz (IARU Region 1), never in the beacon segment 2320.8–2321.0 MHz or on a
+> beacon's frequency. The receiver alone needs no licence.
+>
+> **Zařízení vysílá v radioamatérském pásmu 13 cm (2320 MHz). K vysílání je nutné platné oprávnění (koncese)
+> radioamatéra.** Vysílejte jen se svou značkou, na kmitočtech a s výkonem, které vaše oprávnění a národní kmitočtový
+> plán dovolují: úzkopásmové provozy kolem 2320,0–2320,2 MHz (IARU Region 1), nikdy v segmentu majáků 2320,8–2321,0 MHz
+> ani na kmitočtu majáku. Samotný příjem koncesi nevyžaduje.
 
 **Without a TCXO this does not work.** A stock C3 board (XIAO C3, own crystal) drifts about 6.5 kHz in the
 first minute of transmitting and 300–450 Hz per 10 s over after that (measured,
@@ -72,7 +82,8 @@ which the software computes, so the received beacon sits on the exact Hz.
 
 ## Firmware
 
-Both are forks kept in their own repositories; this repository holds no firmware source.
+Both are forks kept in their own repositories; this repository holds no firmware source, only the built images in
+[`web/fw/`](web/fw) for the page's flasher (`tools/fw_bundle.sh` copies them from the builds).
 
 | Board | Firmware | Licence |
 |---|---|---|
@@ -83,7 +94,16 @@ The C3 firmware is **non-commercial only** (licence of the original by SP8ESA).
 
 ## Quick start
 
-Python 3 with `pyserial` and `websockets` (the bridge); `numpy` and `matplotlib` for the analysis tools. Port defaults are in [`tools/nbports.py`](tools/nbports.py);
+**In the browser, nothing to install:** open **https://ok1cdj.github.io/ESP32-13cm-NB/** in Chrome or Edge on a computer.
+
+1. Plug in the C3 and the S3 (on the TCXO) and flash them from the page: **Flash C3 (TX)**, **Flash S3 (RX)** (row FW).
+2. **Auto connect** (the browser asks for the ports), then **Start**, choose a preset and **Audio on**.
+
+The page talks to the boards over Web Serial. `?demo` runs it without boards. Android: Chrome there has no Web Serial,
+use the app in [`android/`](android/README.md). Details in [`web/README.md`](web/README.md).
+
+**Locally, with the bridge** (any browser, ports known by name). Python 3 with `pyserial` and `websockets` (the
+bridge); `numpy` and `matplotlib` for the analysis tools. Port defaults are in [`tools/nbports.py`](tools/nbports.py);
 set your own through the environment:
 
 ```sh
@@ -108,5 +128,7 @@ tools/nb_rx.sh            # bridge + browser on http://localhost:8080
 Software and docs: GPL-3.0 ([`LICENSE`](LICENSE)). Hardware in `hw/`: CERN-OHL-S-2.0 ([`hw/LICENSE`](hw/LICENSE)).
 `android/.../UsbCdc.kt` comes from ESP32-ATV (GPL-3.0). The firmware forks above keep
 their own licences.
+
+If you like the project: [Buy Me a Coffee](https://buymeacoffee.com/ok1cdj) ☕
 
 73 de OK1CDJ

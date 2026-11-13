@@ -18,25 +18,7 @@ testovací odbočka pro spektrální analyzátor.
 
 ## Zapojení
 
-```
-P1 VIN 5–5,5 V ──[FB1]── VF ──┬── U1 LP5907-3.3 IN, EN ── OUT ── V_TCXO ──┬──────┬──────┬── Y1.4 VDD
-                              C1 1µ                                      C2 1µ  C3 100n C4 10n (u pinu)
-
-Y1.3 OUT ──[C5 10n]── BIAS ──[R3 100R]── BASE ── Q1 2SC3356 B        Q1 C ── VF (C6 100n)
-                        │                                             Q1 E ── EMIT ──[R4 470R]── GND  (≈ 3 mA)
-                VF ─[R1 22k]─┤
-                        └─[R2 22k]─ GND
-
-EMIT ──[R5 47R]── OUT1_A ──[C7 47p C0G]── OUT1_C ──[L1 24nH]── CLK1 ► J1 U.FL ─ pigtail ─► XTAL_P modul #1
-                    └─[R6 DNP]─ GND
-EMIT ──[R7 47R]── OUT2_A ──[C8 47p C0G]── OUT2_C ──[L2 24nH]── CLK2 ► J2 U.FL ─ pigtail ─► XTAL_P modul #2
-                    └─[R8 DNP]─ GND
-EMIT ──[R9 10k]── TEST_A ──[C9 10n]── TEST ► J3 U.FL ─► SMA ─► analyzátor 50 Ω   (≈ −46 dB, bez DC)
-
-Y1.1 = NC (podle datasheetu YXC se nesmí nikam připojit), Y1.2 = GND.
-```
-
-Schéma z EasyEDA: [`vyroba/TCXO-40M_schema.png`](vyroba/TCXO-40M_schema.png).
+![Schéma desky TCXO](vyroba/TCXO-40M_schema.png)
 
 ### Proč sledovač
 
