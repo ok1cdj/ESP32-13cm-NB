@@ -47,8 +47,6 @@ vyvráceno chybějícím krokem s bitem 18).
 
 ## Navržené kroky (pokud pokračovat)
 
-Návrh vlastního firmwaru RX + TX: [`nb-s3-trx-fw-navrh.md`](nb-s3-trx-fw-navrh.md).
-
 1. `espdr-tx` na S3 s TCXO: CW/FSK nosná na 2320 MHz, změřit na tinySA (úroveň, spektrum, fázový šum vůči C3).
 2. Pokus o držený I/Q registr na S3 (malý testovací firmware, podle C3 sekvence + bit 18 `0x60006040`).
 3. Jeden firmware RX + polární TX, změřit dobu přepnutí.

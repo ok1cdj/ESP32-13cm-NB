@@ -1,7 +1,7 @@
 # Jedna neupravená XIAO ESP32-S3 jako NB transceiver + GPS/PPS – průzkum
 
 11. 11. 2026 · krok 0 (zdroje) hotový, kroky 1–2 (experimenty, závěry) se doplňují · navazuje na
-[`../nb-s3-trx-report.md`](../nb-s3-trx-report.md) a [`../nb-s3-trx-fw-navrh.md`](../nb-s3-trx-fw-navrh.md)
+[`../nb-s3-trx-report.md`](../nb-s3-trx-report.md)
 
 Zdroje a přečtené revize:
 

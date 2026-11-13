@@ -499,7 +499,7 @@ mosaznou matici při pájení, pak ocelový šroub vyšroubovat.
 1. ✅ **TCXO** – funkční. *Zbývá změřit a zapsat:* 30min log odchylky od studeného startu
    (před/po), statická odchylka, fázový šum na Rigolu proti krystalu.
    Zapojení: TCXO 40 MHz clipped sine → **10 pF C0G** → XTAL_P, XTAL_N volný, amplituda ≤ 1,1 V.
-2. ⬜ **NB krok 1 – CW maják a příjem** (*další krok*, zadání: `zadani-cw-krok1.md`):
+2. ⬜ **NB krok 1 – CW maják a příjem** (výsledek: [`nb-cw-krok1.md`](nb-cw-krok1.md)):
    - C3 jako **CW maják** (NCO offset, tvarované klíčování, text + dlouhá nosná, NVS) =
      testovací zdroj signálu;
    - **spektrum** z PC: tinySA Ultra+ ZS-407 (USB), případně Rigol DSA1030 (SCPI) –

@@ -1,6 +1,6 @@
 # NB krok 1 – CW maják na C3 s TCXO, spektrum a příjem na S3
 
-9. 11. 2026 · zadání: [`zadani-cw-krok1.md`](zadani-cw-krok1.md) · plán: [`nb-cw-ssb-13cm.md`](nb-cw-ssb-13cm.md)
+9. 11. 2026 · plán: [`nb-cw-ssb-13cm.md`](nb-cw-ssb-13cm.md)
 
 **Výsledek:** C3 vysílá CW maják (Morse text + dlouhá nosná) z NCO s offsetem od LO a tvarovaným klíčováním,
 S3 ho přijímá a `tools/cw_analyze.py` z nahraného I/Q dekóduje text:
