@@ -22,7 +22,7 @@ výpočet 50Ω GCPW: [`calc/calc_gcpw.py`](calc/calc_gcpw.py) (numpy, běží as
 | osazení | vše na TOP, JLC osadí 23 dílů (13 položek). Ručně se pájí SMA J1–J3 (Samtec SMA-J-P-H-ST-EM1) a lišty J4/J5. D1 se neosazuje (DNP) |
 | v1 → v2 | v1 má na zemních padech SMA a D1 thermal relief (report, kap. 3, „Verze 2“). v2 je má plnou mědí, jinak je stejná. DRC čisté až na 2 vědomé výjimky |
 
-![deska shora (v2)](vyroba/TR-SWITCH-13CM-v2_top.png)
+<img src="vyroba/TR-SWITCH-13CM-v2_3d_top.png" width="560" alt="Přepínač v2, 3D pohled z EasyEDA">
 
 Schéma: [`vyroba/TR-SWITCH-13CM_schema.png`](vyroba/TR-SWITCH-13CM_schema.png) (v1 i v2 mají stejné).
 

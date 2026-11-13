@@ -9,6 +9,10 @@ boards).
 > **Status: experimental, work in progress.** It works on one bench (OK1CDJ). The measurements below are from that
 > bench, not from a batch of boards. Expect to read the docs and to change things. Questions and reports are welcome.
 
+> **For licensed radio amateurs.** Transmitting on 13 cm needs an amateur radio licence. Keep to the IARU Region 1
+> band plan and your national rules: narrowband modes around 2320.0–2320.2 MHz, never transmit in the beacon segment
+> (2320.8–2321.0 MHz) or on a beacon's frequency.
+
 **Without a TCXO this does not work.** A stock C3 board (XIAO C3, own crystal) drifts about 6.5 kHz in the
 first minute of transmitting and 300–450 Hz per 10 s over after that (measured,
 [`docs/s3-trx/report.md`](docs/s3-trx/report.md), step 5). The crystal has to be replaced by an external 40 MHz TCXO, see [Hardware](#hardware).
@@ -21,6 +25,7 @@ first minute of transmitting and 300–450 Hz per 10 s over after that (measured
   Carrier −67 dBc, opposite sideband −69 dBc, IM3 −38 dBc at AMP 100 / −47 dBc at AMP 50.
 - **Receiver on the S3**: gapless I/Q stream with loss detection (ESP-SDR `IQS`), spectrum, waterfall, CW and USB audio,
   presets for the Czech 13 cm beacons, DC (LO leakage) calibration of the C3 through the S3.
+- **Over the air**: the beacon OK0EA (2320.804 MHz, JO70UP) received at 65 km with a 2 dBi Wi-Fi antenna.
 - **Web page** [`web/`](web/README.md): RX + TX (microphone, WAV file, tones, PTT), Web Serial or a local bridge.
 - **Android app** [`android/`](android/README.md): the same page on a phone, boards on a USB OTG hub.
 - **Bench tools** [`tools/`](tools/): I/Q recording, CW analysis, tinySA Ultra+ measurements, SSB transmit from the
@@ -33,7 +38,10 @@ Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21
 
 - A fixed spur at 2320.000 MHz (58 × 40 MHz, −34 dBc) while transmitting.
 - DAC images at ±2 MHz need a filter or a faster DAC.
-- Absolute frequency: only as good as the TCXO (±0.5 ppm ≈ ±1.2 kHz). GPS 1 PPS correction is planned.
+- Absolute frequency: only as good as the TCXO (±0.5 ppm ≈ ±1.2 kHz).
+- GPS connection: not on the prototype yet. Plan: a GPS module (1 PPS + NMEA) on the S3, the S3 measures the shared
+  TCXO against the PPS and the host corrects the frequency. The PPS capture was tried only on a plain XIAO S3
+  (ESP-SDR fork, branch `s3-trx`).
 - Phase noise not measured yet; OOK48 not started.
 - The LO leakage calibration is lost at every C3 reset (the PHY calibrates anew at start): calibrate after power-up.
 

@@ -23,7 +23,7 @@ BOM: [`docs/bom.csv`](docs/bom.csv), 50 Ω GCPW calculation: [`calc/calc_gcpw.py
 | assembly | all on TOP, JLC places 23 parts (13 lines). Hand-soldered: SMA J1–J3 (Samtec SMA-J-P-H-ST-EM1) and headers J4/J5. D1 not fitted (DNP) |
 | v1 → v2 | v1 has thermal reliefs on the ground pads of the SMA and D1 (report, section 3, "Verze 2"). v2 has solid copper there, otherwise the same. DRC clean except 2 known exceptions |
 
-![board, top (v2)](vyroba/TR-SWITCH-13CM-v2_top.png)
+<img src="vyroba/TR-SWITCH-13CM-v2_3d_top.png" width="560" alt="T/R switch v2, 3D view from EasyEDA">
 
 Schematic: [`vyroba/TR-SWITCH-13CM_schema.png`](vyroba/TR-SWITCH-13CM_schema.png) (same for v1 and v2).
 

@@ -14,7 +14,7 @@ spectrum analyser.
 | outputs | bottom, from the left: **J1 OUT1**, **J3 TEST**, **J2 OUT2** (U.FL Hirose, C88374) |
 | status | **built and working**: since 2026-11-09 it clocks an ESP32-C3 SuperMini Plus (TX) and a Waveshare ESP32-S3-Zero (RX) at once |
 
-![board, top](vyroba/TCXO-40M_top.png)
+<img src="vyroba/TCXO-40M_3d_top.png" width="420" alt="TCXO board, 3D view from EasyEDA">
 
 ## Circuit
 
@@ -152,7 +152,7 @@ hardest part of the whole build.
 | `TCXO-40M_BOM_JLC.csv` | BOM for JLC assembly (25 SMD parts, R6/R8 left out as DNP) |
 | `TCXO-40M_CPL_JLC.csv` | pick & place for JLC assembly |
 | `TCXO-40M_BOM_full.csv` | full BOM including R6/R8 (DNP) |
-| `TCXO-40M_top.png`, `_bottom.png` | board preview from EasyEDA |
+| `TCXO-40M_3d_top.png` | 3D view from EasyEDA |
 | `TCXO-40M_schema.png` | schematic |
 
 **Order:** 2 layers, 1.6 mm, HASL lead-free, standard rules. Assembly on TOP.

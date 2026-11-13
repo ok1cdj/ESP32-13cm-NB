@@ -14,7 +14,7 @@ testovací odbočka pro spektrální analyzátor.
 | výstupy | dole zleva: **J1 OUT1**, **J3 TEST**, **J2 OUT2** (U.FL Hirose, C88374) |
 | stav | **postavená a funkční**: od 9. 11. 2026 taktuje ESP32-C3 SuperMini Plus (TX) a Waveshare ESP32-S3-Zero (RX) zároveň |
 
-![deska shora](vyroba/TCXO-40M_top.png)
+<img src="vyroba/TCXO-40M_3d_top.png" width="420" alt="Deska TCXO, 3D pohled z EasyEDA">
 
 ## Zapojení
 
@@ -153,7 +153,7 @@ celé stavby.
 | `TCXO-40M_BOM_JLC.csv` | BOM pro JLC osazení (25 SMD dílů, R6/R8 vynechané jako DNP) |
 | `TCXO-40M_CPL_JLC.csv` | pick & place pro JLC osazení |
 | `TCXO-40M_BOM_full.csv` | úplný BOM včetně R6/R8 (DNP) |
-| `TCXO-40M_top.png`, `_bottom.png` | náhled desky z EasyEDA (shora, zespodu) |
+| `TCXO-40M_3d_top.png` | 3D pohled z EasyEDA |
 | `TCXO-40M_schema.png` | schéma |
 
 **Objednávka:** 2 vrstvy, 1,6 mm, HASL lead-free, standardní pravidla. Osazení TOP.
