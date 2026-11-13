@@ -27,6 +27,9 @@ every push to `main`). There is no bridge, the page uses Web Serial (Chrome / Ed
   running beacon off) and refuses a swapped port.
 - **Presets**: the C3 test beacon and the Czech 13 cm beacons from the ČRK list (OK0EA 2320.804 JO70UP, …; check the list),
   and the whole beacon segment 2320.79–2320.99 MHz at 250 kS/s. A preset restarts a running stream on its centre.
+- **Station (row ST)**: callsign and locator, kept in this browser (localStorage). Without a callsign the page does not
+  transmit: CW ON, Calibrate DC (BDC TEST sends the LO leakage), TX and PTT ask for it first. The beacon text is made
+  from them (`VVV DE <call> <locator>`, editable, at most 64 characters of A-Z 0-9 / ? . , = - +) and sent with Apply.
 - **Start / Stop** (one button, Stop while the stream runs): the S3's LO 4 MHz below the centre (mode 2), the PLL's rounding computed → exact frequencies on the shared TCXO.
   A new centre, rate or gain on a running stream restarts it (bench: 23–39 ms). The firmware's in-stream retune
   (`T <MHz> <kHz>`) is not used: a kHz-only retune left the LO where it was although `IQSEND` counted it.

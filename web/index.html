@@ -23,6 +23,7 @@
   input, select, button { background: #2a2e33; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
   input[type=number] { width: 8em; }
   input.w5 { width: 5em; }
+  input.w8 { width: 8em; text-transform: uppercase; }
   select { max-width: 100%; min-width: 0; }
   label { max-width: 100%; }
   button { cursor: pointer; }
@@ -30,6 +31,7 @@
   button.hint { border-color: var(--acc); background: #4a3200; animation: hint 1.2s ease-in-out infinite alternate; }
   @keyframes hint { to { background: #2a2e33; } }
   #log .hint { color: var(--acc); }
+  input.bad { border-color: var(--err); }
   button:disabled { opacity: .45; cursor: default; }
   .stat { font: 12px ui-monospace, monospace; color: var(--dim); overflow-wrap: anywhere; }
   .ok { color: var(--ok); } .err { color: var(--err); }
@@ -61,6 +63,12 @@
   <span class="stat" id="stats"></span>
 </header>
 <main>
+  <div class="row">
+    <b>ST</b>
+    <label>call <input id="call" class="w8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="callsign"></label>
+    <label>locator <input id="loc" class="w8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="JO70UP"></label>
+    <span class="stat" id="stinfo">kept in this browser; needed before the page transmits</span>
+  </div>
   <div class="row">
     <b>S3</b>
     <button id="autoconn" title="Find the S3 and the C3 among the ports this page may use (asks for a port only when one is still missing)">Auto connect</button>
@@ -113,6 +121,7 @@
     <button id="cwoff" disabled>CW OFF</button>
     <label>F <input type="number" id="c3f" step="0.001" value="2320.050"> MHz</label>
     <label>AMP <input type="number" id="c3amp" class="w5" min="1" max="480" value="10"> <span class="stat" id="c3dbm"></span></label>
+    <label>beacon <input id="c3text" maxlength="64" spellcheck="false" autocapitalize="characters" title="The beacon's Morse text (CW SET TEXT on Apply): A-Z 0-9 / ? . , = - + and spaces, at most 64"></label>
     <button id="c3set" disabled>Apply</button>
     <button id="dccal" disabled title="The C3 sends its LO leakage alone (BDC TEST); the S3 measures it through crosstalk and the DC correction is searched for its minimum. Valid until the C3 resets. Shown with the S3's ceramic antenna next to the C3 only.">Calibrate DC (S3)</button>
     <span class="stat" title="Measured 2026-11-10 with the tinySA (±2 dB): linear to AMP 100, P1dB near AMP 150, at most about +12.5 dBm">dBm at the C3's connector, measured</span>

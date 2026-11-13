@@ -370,6 +370,41 @@ $("preset").onchange = async () => {
   await applyCenter();                                    // restart the stream on the new centre
 };
 
+/* ------------------------------------------------------------ station */
+
+// Callsign and locator, kept in this browser. No transmitting (beacon, DC calibration, TX) without a callsign.
+const CALL_RE = /^(?=.*\d)[A-Z0-9]{1,4}(\/?[A-Z0-9]{1,8})*$/;
+const LOC_RE = /^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/;
+const MORSE_RE = /^[A-Z0-9/?.,=+\- ]*$/;
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) ?? ""; } catch (e) { return ""; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private window: not kept */ } },
+};
+function station() {
+  const call = $("call").value.trim().toUpperCase(), loc = $("loc").value.trim().toUpperCase();
+  return { call: CALL_RE.test(call) ? call : "", loc: LOC_RE.test(loc) ? loc : "", callText: call, locText: loc };
+}
+function stationUi() {
+  const s = station();
+  $("call").classList.toggle("bad", !!s.callText && !s.call);
+  $("loc").classList.toggle("bad", !!s.locText && !s.loc);
+  $("stinfo").textContent = s.call ? `${s.call}${s.loc ? " " + s.loc : ""}` : "set your callsign: needed before the page transmits";
+  $("stinfo").className = s.call ? "stat ok" : "stat err";
+  $("c3text").value = s.call ? `VVV DE ${s.call}${s.loc ? " " + s.loc : ""}` : "";
+}
+for (const id of ["call", "loc"]) {
+  $(id).value = store.get("nb." + id);
+  $(id).addEventListener("change", () => { store.set("nb." + id, $(id).value.trim().toUpperCase()); stationUi(); });
+}
+stationUi();
+/** True when a callsign is set; otherwise says so and points at the field. */
+function haveCall() {
+  if (station().call) return true;
+  log("Set your callsign (row ST) before transmitting", "err");
+  $("call").focus();
+  return false;
+}
+
 /* ------------------------------------------------------------ C3 */
 
 function disconnectedC3() {
@@ -530,9 +565,16 @@ showAmpDbm();
 async function c3send(line) {
   await st.c3.writer.write(new TextEncoder().encode(line + "\n"));
 }
-$("cwon").onclick = () => c3send("CW ON");
+$("cwon").onclick = () => { if (haveCall()) c3send("CW ON"); };
 $("cwoff").onclick = () => c3send("CW OFF");
 $("c3set").onclick = async () => {
+  const text = $("c3text").value.trim().toUpperCase();
+  if (text) {
+    if (!MORSE_RE.test(text)) { log("beacon text: only A-Z 0-9 / ? . , = - + and spaces", "err"); return; }
+    if (!haveCall()) return;
+    await c3send(`CW SET TEXT ${text}`);
+    await new Promise((r) => setTimeout(r, 300));
+  }
   await c3send(`CW SET AMP ${Math.round(Number($("c3amp").value))}`);
   await new Promise((r) => setTimeout(r, 300));
   await c3send(`CW SET F ${Number($("c3f").value).toFixed(6)}`);
@@ -571,7 +613,7 @@ function lineLevel(offsetHz) {
 
 $("dccal").onclick = async () => {
   if (!st.s3 || !st.c3) { log("DC calibration needs both the S3 and the C3 connected", "err"); return; }
-  if (st.calRunning) return;
+  if (st.calRunning || !haveCall()) return;      // BDC TEST transmits the LO leakage
   st.calRunning = true; calHint();
   $("dccal").disabled = true;
   const prev = { center: $("center").value, rate: $("rate").value, gainmode: $("gainmode").value, gain: $("gain").value, streaming: st.s3.streaming };
@@ -659,7 +701,7 @@ function sendPairs(tx, iq) {                                 // Float32 interlea
 }
 
 async function startTx() {
-  if (st.tx || !st.c3) return;
+  if (st.tx || !st.c3 || !haveCall()) return;
   const src = $("txsrc").value;
   const tx = st.tx = { src, running: true, sent: 0, peak: 0, writes: Promise.resolve(), t0: performance.now() };
   const released = () => !tx.running || st.tx !== tx;
