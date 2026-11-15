@@ -36,6 +36,10 @@ first minute of transmitting and 300–450 Hz per 10 s over after that (measured
 - **Receiver on the S3**: gapless I/Q stream with loss detection (ESP-SDR `IQS`), spectrum, waterfall, CW and USB audio,
   presets for the Czech 13 cm beacons, DC (LO leakage) calibration of the C3 through the S3.
 - **Over the air**: the beacon OK0EA (2320.804 MHz, JO70UP) received at 65 km with a 2 dBi Wi-Fi antenna.
+
+https://github.com/user-attachments/assets/981c16dd-1951-48dd-8d64-5cadfabb8d1f
+
+
 - **Web page** [`web/`](web/README.md): RX + TX (microphone, WAV file, tones, PTT), Web Serial or a local bridge.
 - **Android app** [`android/`](android/README.md): the same page on a phone, boards on a USB OTG hub.
 - **Bench tools** [`tools/`](tools/): I/Q recording, CW analysis, tinySA Ultra+ measurements, SSB transmit from the
