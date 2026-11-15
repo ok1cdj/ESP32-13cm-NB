@@ -35,15 +35,15 @@ first minute of transmitting and 300–450 Hz per 10 s over after that (measured
   Carrier −67 dBc, opposite sideband −69 dBc, IM3 −38 dBc at AMP 100 / −47 dBc at AMP 50.
 - **Receiver on the S3**: gapless I/Q stream with loss detection (ESP-SDR `IQS`), spectrum, waterfall, CW and USB audio,
   presets for the Czech 13 cm beacons, DC (LO leakage) calibration of the C3 through the S3.
-- **Over the air**: the beacon OK0EA (2320.804 MHz, JO70UP) received at 65 km with a 2 dBi Wi-Fi antenna.
-
-https://github.com/user-attachments/assets/981c16dd-1951-48dd-8d64-5cadfabb8d1f
-
-
+- **Over the air**: the beacon OK0EA (2320.804 MHz, JO70UP) received at 65 km with a 2 dBi Wi-Fi antenna (video below).
 - **Web page** [`web/`](web/README.md): RX + TX (microphone, WAV file, tones, PTT), Web Serial or a local bridge.
 - **Android app** [`android/`](android/README.md): the same page on a phone, boards on a USB OTG hub.
 - **Bench tools** [`tools/`](tools/): I/Q recording, CW analysis, tinySA Ultra+ measurements, SSB transmit from the
   command line.
+
+OK0EA at 65 km on a phone (NB TRX app, CW, 500 Hz filter, about 28 dB above the noise), 2026-11-15:
+
+https://github.com/user-attachments/assets/981c16dd-1951-48dd-8d64-5cadfabb8d1f
 
 C3 output at the U.FL connector: ≈ −37 dBm + 20·log(AMP), linear up to AMP 100 (≈ +2.5 dBm), at most ≈ +12.5 dBm.
 Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21 dBc uncalibrated / −40…−46 dBc calibrated.
