@@ -43,7 +43,10 @@ first minute of transmitting and 300–450 Hz per 10 s over after that (measured
 
 OK0EA at 65 km on a phone (NB TRX app, CW, 500 Hz filter, about 28 dB above the noise), 2026-11-15:
 
-https://github.com/user-attachments/assets/981c16dd-1951-48dd-8d64-5cadfabb8d1f
+
+https://github.com/user-attachments/assets/7d58eeb1-0484-4311-8040-a0c143e946e6
+
+
 
 C3 output at the U.FL connector: ≈ −37 dBm + 20·log(AMP), linear up to AMP 100 (≈ +2.5 dBm), at most ≈ +12.5 dBm.
 Spurious: DAC images ±2 MHz −40 dBc, 2nd harmonic −46 dBc, LO leakage −21 dBc uncalibrated / −40…−46 dBc calibrated.
